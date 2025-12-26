@@ -23,6 +23,7 @@ export async function apiSignin(data: any) {
   const res = await fetch(`${API_BASE_URL}/auth/signin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify(data),
   });
   return handleResponse(res);
@@ -45,6 +46,7 @@ export async function verifyUser(token: string) {
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
   });
   return handleResponse(res);
 }
@@ -70,11 +72,14 @@ export async function createRestaurant(data: any, token: string) {
   return handleResponse(res);
 }
 
-export async function getCurrentUser(token: string) {
+export async function getCurrentUser(token?: string) {
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(`${API_BASE_URL}/user`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
+    credentials: "include",
     cache: "no-store",
   });
   return handleResponse(res);
