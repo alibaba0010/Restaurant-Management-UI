@@ -1,0 +1,109 @@
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '../ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '../ui/form';
+import { Input } from '../ui/input';
+import { SigninFormSchema } from '../../lib/definitions';
+import { signin } from '../../lib/actions';
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import OauthButtons from '../auth/oauth-buttons';
+import { Loader2 } from 'lucide-react';
+
+export function SigninForm() {
+  const [error, setError] = useState<string | undefined>('');
+  const [isPending, startTransition] = useTransition();
+
+  const form = useForm<z.infer<typeof SigninFormSchema>>({
+    resolver: zodResolver(SigninFormSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  function onSubmit(values: z.infer<typeof SigninFormSchema>) {
+    setError('');
+    startTransition(async () => {
+        const formData = new FormData();
+        Object.entries(values).forEach(([key, value]) => {
+            formData.append(key, value);
+        });
+        const result = await signin({ message: '', success: false }, formData);
+        if (!result.success) {
+            setError(result.message);
+        }
+        // Redirect is handled in the server action
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="john.doe@example.com" {...field} disabled={isPending} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="••••••••" {...field} disabled={isPending} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+          <Button type="submit" className="w-full" disabled={isPending}>
+            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Sign In
+          </Button>
+        </form>
+      </Form>
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Or sign in with
+          </span>
+        </div>
+      </div>
+      <OauthButtons />
+      <p className="text-center text-sm text-muted-foreground">
+        Don't have an account?{' '}
+        <Link
+          href="/signup"
+          className="underline underline-offset-4 hover:text-primary"
+        >
+          Sign Up
+        </Link>
+      </p>
+    </div>
+  );
+}
