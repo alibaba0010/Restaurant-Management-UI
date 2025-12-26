@@ -33,12 +33,7 @@ export default function VerifyClient() {
 
         // Check if response has data and access_token
         if (response && response.data) {
-          const { access_token, refresh_token, ...user } = response.data;
-
-          // Store access token
-          if (access_token) {
-            localStorage.setItem("accessToken", access_token);
-          }
+          const { ...user } = response.data;
 
           // Update Auth Store
           setUser({

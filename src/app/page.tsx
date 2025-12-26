@@ -1,3 +1,4 @@
+"use client";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "../components/ui/button";
@@ -7,12 +8,14 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { Utensils, Camera, Users, Award } from "lucide-react";
+import { Utensils, Camera, Users } from "lucide-react";
 import Header from "../components/layout/header";
 import Footer from "../components/layout/footer";
 import { PlaceHolderImages } from "../lib/placeholder-images";
+import { useAuthStore } from "../lib/store";
 
 export default function Home() {
+  const { isAuthenticated } = useAuthStore();
   const heroImage = PlaceHolderImages.find((p) => p.id === "hero-image-main");
 
   const features = [
@@ -52,12 +55,20 @@ export default function Home() {
                 next favorite meal is just a click away.
               </p>
               <div className="flex space-x-4">
-                <Button asChild size="lg">
-                  <Link href="/signup">Get Started</Link>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <Link href="/signin">Sign In</Link>
-                </Button>
+                {isAuthenticated ? (
+                  <Button asChild size="lg">
+                    <Link href="/dashboard">Go to Dashboard</Link>
+                  </Button>
+                ) : (
+                  <>
+                    <Button asChild size="lg">
+                      <Link href="/signup">Get Started</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="lg">
+                      <Link href="/signin">Sign In</Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
             <div className="relative h-80 lg:h-full rounded-lg overflow-hidden shadow-2xl">

@@ -20,17 +20,18 @@ async function handleResponse(res: Response) {
 }
 
 export async function apiSignin(data: any) {
+  console.log(`API BASE URL in sign in   : ${API_BASE_URL}`);
+
   const res = await fetch(`${API_BASE_URL}/auth/signin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(data),
+    credentials: "include",
   });
   return handleResponse(res);
 }
 
 export async function apiSignup(data: any) {
-  console.log(`API BASE URL:in signup  ${API_BASE_URL}`);
   const res = await fetch(`${API_BASE_URL}/auth/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -39,8 +40,6 @@ export async function apiSignup(data: any) {
   return handleResponse(res);
 }
 export async function verifyUser(token: string) {
-  console.log(`API BASE URL in verify user   : ${API_BASE_URL}`);
-
   const res = await fetch(`${API_BASE_URL}/auth/verify?token=${token}`, {
     method: "GET",
     headers: {
@@ -52,7 +51,8 @@ export async function verifyUser(token: string) {
 }
 export async function getRestaurants(page = 1, pageSize = 20, query = "") {
   const res = await fetch(
-    `${API_BASE_URL}/restaurants?page=${page}&page_size=${pageSize}&q=${query}`,
+    // `${API_BASE_URL}/restaurants?page=${page}&page_size=${pageSize}&q=${query}`,
+    `${API_BASE_URL}/restauran`,
     {
       cache: "no-store",
     }
@@ -61,7 +61,8 @@ export async function getRestaurants(page = 1, pageSize = 20, query = "") {
 }
 
 export async function createRestaurant(data: any, token: string) {
-  const res = await fetch(`${API_BASE_URL}/restaurants`, {
+  // const res = await fetch(`${API_BASE_URL}/restaurants`, {
+  const res = await fetch(`${API_BASE_URL}/restaus`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -83,4 +84,19 @@ export async function getCurrentUser(token?: string) {
     cache: "no-store",
   });
   return handleResponse(res);
+}
+
+export async function apiRefreshToken(cookieHeader?: string) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (cookieHeader) {
+    headers["Cookie"] = cookieHeader;
+  }
+  const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers,
+    credentials: "include",
+  });
+  return res;
 }

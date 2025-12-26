@@ -69,15 +69,6 @@ export async function signin(
   try {
     const response = await apiSignin({ email, password });
 
-    // Set session cookie
-    // @ts-ignore
-    (await cookies()).set("access_token", response.data.access_token, {
-      httpOnly: true,
-      path: "/",
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 15 * 60, // 15 minutes match backend
-    });
-
     // Redirect handled after try-catch or return success
   } catch (error: any) {
     return {
