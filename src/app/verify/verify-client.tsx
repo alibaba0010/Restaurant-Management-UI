@@ -11,6 +11,7 @@ import {
 import { CircleCheck, CircleX, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { verifyUser } from "../../lib/api";
+import { useAuthStore } from "../../lib/store";
 
 export default function VerifyClient() {
   const searchParams = useSearchParams();
@@ -19,6 +20,7 @@ export default function VerifyClient() {
   const [status, setStatus] = useState<"verifying" | "success" | "error">(
     "verifying"
   );
+  const setUser = useAuthStore((state) => state.setUser);
   useEffect(() => {
     if (!token) {
       setStatus("error");
@@ -27,7 +29,26 @@ export default function VerifyClient() {
 
     const processVerification = async () => {
       try {
-        const data = await verifyUser(token);
+        const response = await verifyUser(token);
+
+        // Check if response has data and access_token
+        if (response && response.data) {
+          const { access_token, refresh_token, ...user } = response.data;
+
+          // Store access token
+          if (access_token) {
+            localStorage.setItem("accessToken", access_token);
+          }
+
+          // Update Auth Store
+          setUser({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          });
+        }
+
         setStatus("success");
         setTimeout(() => {
           router.push("/");
@@ -38,7 +59,7 @@ export default function VerifyClient() {
       }
     };
     processVerification();
-  }, [token, router]);
+  }, [token, router, setUser]);
 
   return (
     <Card className="w-full max-w-md shadow-xl">
