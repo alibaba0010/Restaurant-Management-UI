@@ -110,3 +110,37 @@ export async function apiLogout() {
   });
   return handleResponse(res);
 }
+
+export async function getAllUsers(
+  page = 1,
+  pageSize = 20,
+  query = "",
+  role = ""
+) {
+  const res = await fetch(
+    `${API_BASE_URL}/user/users?page=${page}&page_size=${pageSize}&q=${query}&role=${role}`,
+    {
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
+  return handleResponse(res);
+}
+
+export async function getUserById(id: string) {
+  const res = await fetch(`${API_BASE_URL}/user/${id}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  return handleResponse(res);
+}
+
+export async function updateUserRole(id: string, role: string) {
+  const res = await fetch(`${API_BASE_URL}/user/${id}/role`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+    credentials: "include",
+  });
+  return handleResponse(res);
+}

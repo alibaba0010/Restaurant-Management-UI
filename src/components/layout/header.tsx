@@ -103,6 +103,17 @@ export default function Header() {
                         <span>Settings</span>
                       </Link>
                     </DropdownMenuItem>
+                    {user.role === "admin" && (
+                      <DropdownMenuItem asChild>
+                        <Link
+                          href="/dashboard/users"
+                          className="cursor-pointer flex w-full items-center"
+                        >
+                          <UserIcon className="mr-2 h-4 w-4" />
+                          <span>User Management</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={handleLogout}
