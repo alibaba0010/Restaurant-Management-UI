@@ -4,6 +4,7 @@ import { Button } from "../ui/button";
 import { Utensils } from "lucide-react";
 import { useAuthStore } from "../../lib/store";
 import { useRouter } from "next/navigation";
+import { apiLogout } from "../../lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,13 +20,15 @@ export default function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const router = useRouter();
 
-  const handleLogout = () => {
-    // In a real app we'd also call an API to clear the cookie
-    // For now, clear client state and redirect
-    document.cookie =
-      "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-    logout();
-    router.push("/");
+  const handleLogout = async () => {
+    try {
+      await apiLogout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    } finally {
+      logout();
+      router.push("/");
+    }
   };
 
   const getInitials = (name: string) => {

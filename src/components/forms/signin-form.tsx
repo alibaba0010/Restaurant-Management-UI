@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Button } from '../ui/button';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Button } from "../ui/button";
 import {
   Form,
   FormControl,
@@ -11,39 +11,52 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '../ui/form';
-import { Input } from '../ui/input';
-import { SigninFormSchema } from '../../lib/definitions';
-import { signin } from '../../lib/actions';
-import { useState, useTransition } from 'react';
-import Link from 'next/link';
-import OauthButtons from '../auth/oauth-buttons';
-import { Loader2 } from 'lucide-react';
+} from "../ui/form";
+import { Input } from "../ui/input";
+import { SigninFormSchema } from "../../lib/definitions";
+import { apiSignin } from "../../lib/api";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import OauthButtons from "../auth/oauth-buttons";
+import { Loader2 } from "lucide-react";
+import { useAuthStore } from "../../lib/store";
 
 export function SigninForm() {
-  const [error, setError] = useState<string | undefined>('');
+  const [error, setError] = useState<string | undefined>("");
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const setUser = useAuthStore((state) => state.setUser);
 
   const form = useForm<z.infer<typeof SigninFormSchema>>({
     resolver: zodResolver(SigninFormSchema),
     defaultValues: {
-      email: '',
-      password: '',
+      email: "",
+      password: "",
     },
   });
 
   function onSubmit(values: z.infer<typeof SigninFormSchema>) {
-    setError('');
+    setError("");
     startTransition(async () => {
-        const formData = new FormData();
-        Object.entries(values).forEach(([key, value]) => {
-            formData.append(key, value);
-        });
-        const result = await signin({ message: '', success: false }, formData);
-        if (!result.success) {
-            setError(result.message);
+      try {
+        const response = await apiSignin(values);
+
+        if (response && response.data) {
+          // Update Auth Store
+          setUser({
+            id: response.data.id,
+            name: response.data.name,
+            email: response.data.email,
+            role: response.data.role,
+          });
+
+          // Redirect on success
+          router.push("/dashboard");
         }
-        // Redirect is handled in the server action
+      } catch (err: any) {
+        setError(err.message || "Invalid credentials.");
+      }
     });
   }
 
@@ -58,7 +71,12 @@ export function SigninForm() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="john.doe@example.com" {...field} disabled={isPending} />
+                  <Input
+                    type="email"
+                    placeholder="john.doe@example.com"
+                    {...field}
+                    disabled={isPending}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -71,13 +89,20 @@ export function SigninForm() {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} disabled={isPending} />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    {...field}
+                    disabled={isPending}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+          {error && (
+            <p className="text-sm font-medium text-destructive">{error}</p>
+          )}
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign In
@@ -96,7 +121,7 @@ export function SigninForm() {
       </div>
       <OauthButtons />
       <p className="text-center text-sm text-muted-foreground">
-        Don't have an account?{' '}
+        Don't have an account?{" "}
         <Link
           href="/signup"
           className="underline underline-offset-4 hover:text-primary"

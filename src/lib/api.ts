@@ -100,3 +100,13 @@ export async function apiRefreshToken(cookieHeader?: string) {
   });
   return res;
 }
+export async function apiLogout() {
+  const res = await fetch(`${API_BASE_URL}/user/logout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    credentials: "include",
+  });
+  return handleResponse(res);
+}

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { SignupFormSchema, SigninFormSchema } from "./definitions";
+import { SignupFormSchema } from "./definitions";
 import { apiSignin, apiSignup } from "./api";
 
 export type SignupState = {
@@ -41,41 +41,4 @@ export async function signup(
       "Signup successful! Please check your email to verify your account.",
     success: true,
   };
-}
-
-export type SigninState = {
-  message: string;
-  success: boolean;
-};
-
-export async function signin(
-  prevState: SigninState,
-  formData: FormData
-): Promise<SigninState> {
-  const validatedFields = SigninFormSchema.safeParse(
-    Object.fromEntries(formData.entries())
-  );
-
-  if (!validatedFields.success) {
-    return {
-      message: "Invalid form data.",
-      success: false,
-    };
-  }
-
-  // Authenticate with backend
-  const { email, password } = validatedFields.data;
-
-  try {
-    const response = await apiSignin({ email, password });
-
-    // Redirect handled after try-catch or return success
-  } catch (error: any) {
-    return {
-      message: error.message || "Invalid credentials.",
-      success: false,
-    };
-  }
-
-  redirect("/dashboard");
 }
