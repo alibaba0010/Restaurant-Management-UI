@@ -28,17 +28,17 @@ export async function signup(
 
   // Authenticate with backend
   try {
-    await apiSignup(validatedFields.data);
+    const response = await apiSignup(validatedFields.data);
+    return {
+      message:
+        response.message ||
+        "Signup successful! Please check your email to verify your account.",
+      success: true,
+    };
   } catch (error: any) {
     return {
       message: error.message || "Signup failed.",
       success: false,
     };
   }
-
-  return {
-    message:
-      "Signup successful! Please check your email to verify your account.",
-    success: true,
-  };
 }

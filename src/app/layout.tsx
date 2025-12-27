@@ -3,7 +3,7 @@ import "./globals.css";
 import { Toaster } from "../components/ui/toaster";
 import AuthProvider from "../components/providers/auth-provider";
 import { cookies } from "next/headers";
-import { getCurrentUser, apiRefreshToken } from "../lib/api";
+import { getCurrentUser, refreshSession } from "../lib/api";
 
 export const metadata: Metadata = {
   title: "GourmetHub",
@@ -20,45 +20,34 @@ export default async function RootLayout({
   const refresh_token = cookieStore.get("refresh_token")?.value;
   let user = null;
 
-  if (access_token) {
+  if (!access_token && refresh_token) {
+    // No access token but refresh token exists, try to get a new one
+    const refresh = await refreshSession(cookieStore.toString());
+    if (refresh.success && refresh.token) {
+      try {
+        user = await getCurrentUser(refresh.token);
+      } catch (e) {
+        console.error("Failed to get user after refresh", e);
+      }
+    }
+  } else if (access_token) {
     try {
       user = await getCurrentUser(access_token);
     } catch (error: any) {
       if (error.status === 401 && refresh_token) {
-        // Access token expired/invalid but refresh token exists, try to refresh
-        try {
-          const allCookies = cookieStore.toString();
-          const refreshRes = await apiRefreshToken(allCookies);
-
-          if (refreshRes.ok) {
-            const refreshData = await refreshRes.json();
-            const newToken = refreshData.access_token;
-            if (newToken) {
-              user = await getCurrentUser(newToken);
-            }
+        // Access token expired, try to refresh
+        const refresh = await refreshSession(cookieStore.toString());
+        if (refresh.success && refresh.token) {
+          try {
+            user = await getCurrentUser(refresh.token);
+          } catch (e) {
+            console.error("Failed to get user after layout refresh", e);
           }
-        } catch (refreshError) {
-          console.error("Token refresh failed", refreshError);
         }
       }
-    }
-  } else if (refresh_token) {
-    // No access token but refresh token exists
-    try {
-      const allCookies = cookieStore.toString();
-      const refreshRes = await apiRefreshToken(allCookies);
-
-      if (refreshRes.ok) {
-        const refreshData = await refreshRes.json();
-        const newToken = refreshData.access_token;
-        if (newToken) {
-          user = await getCurrentUser(newToken);
-        }
-      }
-    } catch (refreshError) {
-      console.error("Token refresh failed", refreshError);
     }
   }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

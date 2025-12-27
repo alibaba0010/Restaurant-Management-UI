@@ -1,5 +1,7 @@
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
+const isServer = typeof window === "undefined";
+export const API_BASE_URL = isServer
+  ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"
+  : "/api/v1";
 
 export class ApiError extends Error {
   constructor(public message: string, public status: number) {
@@ -20,8 +22,6 @@ async function handleResponse(res: Response) {
 }
 
 export async function apiSignin(data: any) {
-  console.log(`API BASE URL in sign in   : ${API_BASE_URL}`);
-
   const res = await fetch(`${API_BASE_URL}/auth/signin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -36,9 +36,11 @@ export async function apiSignup(data: any) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
+    credentials: "include",
   });
   return handleResponse(res);
 }
+
 export async function verifyUser(token: string) {
   const res = await fetch(`${API_BASE_URL}/auth/verify?token=${token}`, {
     method: "GET",
@@ -46,29 +48,6 @@ export async function verifyUser(token: string) {
       "Content-Type": "application/json",
     },
     credentials: "include",
-  });
-  return handleResponse(res);
-}
-export async function getRestaurants(page = 1, pageSize = 20, query = "") {
-  const res = await fetch(
-    // `${API_BASE_URL}/restaurants?page=${page}&page_size=${pageSize}&q=${query}`,
-    `${API_BASE_URL}/restauran`,
-    {
-      cache: "no-store",
-    }
-  );
-  return handleResponse(res);
-}
-
-export async function createRestaurant(data: any, token: string) {
-  // const res = await fetch(`${API_BASE_URL}/restaurants`, {
-  const res = await fetch(`${API_BASE_URL}/restaus`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(data),
   });
   return handleResponse(res);
 }
@@ -93,13 +72,51 @@ export async function apiRefreshToken(cookieHeader?: string) {
   if (cookieHeader) {
     headers["Cookie"] = cookieHeader;
   }
-  const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
+  return fetch(`${API_BASE_URL}/auth/refresh`, {
     method: "POST",
     headers,
     credentials: "include",
   });
-  return res;
 }
+
+/**
+ * Shared helper to refresh session and extract the new access token.
+ * Useful for both Middleware and Server Components (Layouts/Pages).
+ */
+export async function refreshSession(cookieHeader?: string) {
+  const res = await apiRefreshToken(cookieHeader);
+
+  if (!res.ok) {
+    return { success: false, token: null, message: "Refresh failed" };
+  }
+
+  // Extract token from Set-Cookie header
+  const setCookies = res.headers.getSetCookie();
+  const accessTokenCookie = setCookies.find((c) =>
+    c.startsWith("access_token=")
+  );
+  const token = accessTokenCookie
+    ? accessTokenCookie.split(";")[0].split("=")[1]
+    : null;
+
+  try {
+    const data = await res.json();
+    return {
+      success: true,
+      token,
+      message: data.message || data.title,
+      setCookies,
+    };
+  } catch (e) {
+    return {
+      success: true,
+      token,
+      message: "Refreshed successfully",
+      setCookies,
+    };
+  }
+}
+
 export async function apiLogout() {
   const res = await fetch(`${API_BASE_URL}/user/logout`, {
     method: "POST",
@@ -142,5 +159,31 @@ export async function updateUserRole(id: string, role: string) {
     body: JSON.stringify({ role }),
     credentials: "include",
   });
+  return handleResponse(res);
+}
+export async function createRestaurant(data: any, token?: string) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API_BASE_URL}/restaurant`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(data),
+    credentials: "include",
+  });
+  return handleResponse(res);
+}
+
+export async function getRestaurants(page = 1, pageSize = 20, query = "") {
+  const res = await fetch(
+    `${API_BASE_URL}/restaurant?page=${page}&page_size=${pageSize}&q=${query}`,
+    {
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
   return handleResponse(res);
 }
