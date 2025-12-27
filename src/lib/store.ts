@@ -1,12 +1,6 @@
 import { create } from "zustand";
 import { Restaurant } from "./definitions";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-}
+import { User } from "./types";
 
 interface AuthState {
   user: User | null;

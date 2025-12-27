@@ -1,3 +1,5 @@
+import { UserRole } from "./types";
+
 const isServer = typeof window === "undefined";
 export const API_BASE_URL = isServer
   ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"
@@ -132,7 +134,7 @@ export async function getAllUsers(
   page = 1,
   pageSize = 20,
   query = "",
-  role = ""
+  role: UserRole | string = ""
 ) {
   const res = await fetch(
     `${API_BASE_URL}/user/users?page=${page}&page_size=${pageSize}&q=${query}&role=${role}`,
@@ -152,7 +154,7 @@ export async function getUserById(id: string) {
   return handleResponse(res);
 }
 
-export async function updateUserRole(id: string, role: string) {
+export async function updateUserRole(id: string, role: UserRole) {
   const res = await fetch(`${API_BASE_URL}/user/${id}/role`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },

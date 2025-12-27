@@ -45,12 +45,7 @@ export function SigninForm() {
 
         if (response && response.data) {
           // Update Auth Store
-          setUser({
-            id: response.data.id,
-            name: response.data.name,
-            email: response.data.email,
-            role: response.data.role,
-          });
+          setUser(response.data);
 
           // Redirect on success
           router.push("/dashboard");
