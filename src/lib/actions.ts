@@ -6,6 +6,7 @@ import {
   ResetPasswordSchema,
 } from "./definitions";
 import { apiSignup, apiForgotPassword, apiResetPassword } from "./api";
+import { headers } from "next/headers";
 
 export type SignupState = {
   message: string;
@@ -39,7 +40,9 @@ export async function signup(
 
   // Authenticate with backend
   try {
-    const response = await apiSignup(validatedFields.data);
+    const headersList = await headers();
+    const userAgent = headersList.get("user-agent") || "";
+    const response = await apiSignup(validatedFields.data, userAgent);
     return {
       message:
         response.message ||
@@ -70,7 +73,9 @@ export async function forgotPassword(
   }
 
   try {
-    const response = await apiForgotPassword(validatedFields.data);
+    const headersList = await headers();
+    const userAgent = headersList.get("user-agent") || "";
+    const response = await apiForgotPassword(validatedFields.data, userAgent);
     return {
       message:
         response.message ||
@@ -103,7 +108,9 @@ export async function resetPassword(
   }
 
   try {
-    const response = await apiResetPassword(validatedFields.data);
+    const headersList = await headers();
+    const userAgent = headersList.get("user-agent") || "";
+    const response = await apiResetPassword(validatedFields.data, userAgent);
     return {
       message:
         response.message ||

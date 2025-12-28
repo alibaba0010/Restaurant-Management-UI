@@ -29,6 +29,9 @@ import {
   ShieldCheck,
   ShieldAlert,
   Eye,
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -67,6 +70,8 @@ export default function UsersManagementPage() {
   const [search, setSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [sortBy, setSortBy] = useState("created_at");
+  const [order, setOrder] = useState<"asc" | "desc">("desc");
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -74,18 +79,36 @@ export default function UsersManagementPage() {
     if (isAdmin) {
       fetchUsers();
     }
-  }, [isAdmin, search]);
+  }, [isAdmin, search, sortBy, order]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const res = await getAllUsers(1, 50, search);
+      const res = await getAllUsers(1, 50, search, "", sortBy, order);
       setUsers(res.data);
     } catch (error) {
       showErrorToast(error, "Failed to fetch users");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setOrder(order === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(column);
+      setOrder("desc");
+    }
+  };
+
+  const getSortIcon = (column: string) => {
+    if (sortBy !== column) return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    return order === "asc" ? (
+      <ChevronUp className="ml-2 h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-2 h-4 w-4" />
+    );
   };
 
   const handleUserUpdate = async (
@@ -194,8 +217,22 @@ export default function UsersManagementPage() {
                   <TableRow>
                     <TableHead className="w-[250px]">User</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Joined</TableHead>
-                    <TableHead>Current Role</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => handleSort("created_at")}
+                    >
+                      <div className="flex items-center">
+                        Joined {getSortIcon("created_at")}
+                      </div>
+                    </TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:text-primary transition-colors"
+                      onClick={() => handleSort("role")}
+                    >
+                      <div className="flex items-center">
+                        Current Role {getSortIcon("role")}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>

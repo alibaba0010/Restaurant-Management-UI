@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "../components/ui/toaster";
 import AuthProvider from "../components/providers/auth-provider";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { getCurrentUser, refreshSession } from "../lib/api";
 
 export const metadata: Metadata = {
@@ -18,36 +18,43 @@ export default async function RootLayout({
   const cookieStore = await cookies();
   const access_token = cookieStore.get("access_token")?.value;
   const refresh_token = cookieStore.get("refresh_token")?.value;
+  const headersList = await headers();
+  const userAgent = headersList.get("user-agent") || "";
+  const cookieHeader = headersList.get("cookie") || "";
   let user = null;
 
-  if (!access_token && refresh_token) {
-    // No access token but refresh token exists, try to get a new one
-    const refresh = await refreshSession(cookieStore.toString());
-    if (refresh.success && refresh.token) {
-      try {
-        const response = await getCurrentUser(refresh.token);
-        user = response.data;
-      } catch (e) {
-        console.error("Failed to get user after refresh", e);
-      }
-    }
-  } else if (access_token) {
+  // 1. Try to get user with existing access token
+  if (access_token) {
     try {
-      const response = await getCurrentUser(access_token);
+      const response = await getCurrentUser(
+        access_token,
+        userAgent,
+        cookieHeader
+      );
       user = response.data;
     } catch (error: any) {
-      if (error.status === 401 && refresh_token) {
-        // Access token expired, try to refresh
-        const refresh = await refreshSession(cookieStore.toString());
-        if (refresh.success && refresh.token) {
-          try {
-            const response = await getCurrentUser(refresh.token);
-            user = response.data;
-          } catch (e) {
-            console.error("Failed to get user after layout refresh", e);
-          }
-        }
+      if (error.status !== 401) {
+        console.error("Failed to fetch user:", error);
       }
+      // If 401, we will fall through to refresh logic below
+    }
+  }
+
+  // 2. If no user (missing or expired access token) AND we have a refresh token, try to refresh
+  if (!user && refresh_token) {
+    try {
+      const refresh = await refreshSession(cookieHeader, userAgent);
+      if (refresh.success && refresh.token) {
+        // 3. Retry fetching user with the NEW access token
+        const response = await getCurrentUser(
+          refresh.token,
+          userAgent,
+          cookieHeader
+        );
+        user = response.data;
+      }
+    } catch (e) {
+      console.error("Session refresh failed:", e);
     }
   }
 
