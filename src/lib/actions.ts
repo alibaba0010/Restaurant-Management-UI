@@ -1,9 +1,23 @@
 "use server";
 
-import { SignupFormSchema } from "./definitions";
-import { apiSignup } from "./api";
+import {
+  SignupFormSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+} from "./definitions";
+import { apiSignup, apiForgotPassword, apiResetPassword } from "./api";
 
 export type SignupState = {
+  message: string;
+  success: boolean;
+};
+
+export type ForgotPasswordState = {
+  message: string;
+  success: boolean;
+};
+
+export type ResetPasswordState = {
   message: string;
   success: boolean;
 };
@@ -35,6 +49,70 @@ export async function signup(
   } catch (error: any) {
     return {
       message: error.message || "Signup failed.",
+      success: false,
+    };
+  }
+}
+
+export async function forgotPassword(
+  prevState: ForgotPasswordState,
+  formData: FormData
+): Promise<ForgotPasswordState> {
+  const validatedFields = ForgotPasswordSchema.safeParse(
+    Object.fromEntries(formData.entries())
+  );
+
+  if (!validatedFields.success) {
+    return {
+      message: "Invalid email address.",
+      success: false,
+    };
+  }
+
+  try {
+    const response = await apiForgotPassword(validatedFields.data);
+    return {
+      message:
+        response.message ||
+        "Password reset link sent! Please check your email.",
+      success: true,
+    };
+  } catch (error: any) {
+    return {
+      message: error.message || "Failed to send password reset email.",
+      success: false,
+    };
+  }
+}
+
+export async function resetPassword(
+  prevState: ResetPasswordState,
+  formData: FormData
+): Promise<ResetPasswordState> {
+  const validatedFields = ResetPasswordSchema.safeParse(
+    Object.fromEntries(formData.entries())
+  );
+
+  if (!validatedFields.success) {
+    const message =
+      validatedFields.error.flatten().formErrors[0] || "Invalid password data.";
+    return {
+      message,
+      success: false,
+    };
+  }
+
+  try {
+    const response = await apiResetPassword(validatedFields.data);
+    return {
+      message:
+        response.message ||
+        "Password reset successful! Please sign in with your new password.",
+      success: true,
+    };
+  } catch (error: any) {
+    return {
+      message: error.message || "Failed to reset password.",
       success: false,
     };
   }

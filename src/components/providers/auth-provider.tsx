@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useAuthStore } from "../../lib/store";
 
 export default function AuthProvider({
@@ -15,5 +15,12 @@ export default function AuthProvider({
     useAuthStore.setState({ user: user, isAuthenticated: !!user });
     initialized.current = true;
   }
+
+  useEffect(() => {
+    // Mark the session as active in sessionStorage.
+    // sessionStorage is cleared when the tab or window is closed.
+    sessionStorage.setItem("session_active", "true");
+  }, []);
+
   return <>{children}</>;
 }

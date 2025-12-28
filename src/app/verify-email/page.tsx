@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "../../components/layout/header";
 import Footer from "../../components/layout/footer";
 import { ResendVerification } from "../../components/auth/resend-verification";
+import { useTemporaryRoute } from "../../hooks/use-temporary-route";
 import {
   Card,
   CardContent,
@@ -19,6 +20,9 @@ import { Button } from "../../components/ui/button";
 export default function VerifyEmailPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+
+  // Redirect to home if the session was closed and reopened
+  useTemporaryRoute();
 
   useEffect(() => {
     // Get email from localStorage

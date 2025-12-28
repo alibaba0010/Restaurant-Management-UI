@@ -26,7 +26,6 @@ export interface ApiResponse<T = any> {
 async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
   const contentType = res.headers.get("content-type");
   const isJson = contentType?.includes("application/json");
-
   if (!res.ok) {
     let message = "An error occurred";
     let title = "Error";
@@ -243,5 +242,25 @@ export async function getRestaurants(page = 1, pageSize = 20, query = "") {
       cache: "no-store",
     }
   );
+  return handleResponse(res);
+}
+
+export async function apiForgotPassword(data: { email: string }) {
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+    credentials: "include",
+  });
+  return handleResponse(res);
+}
+
+export async function apiResetPassword(data: any) {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+    credentials: "include",
+  });
   return handleResponse(res);
 }
