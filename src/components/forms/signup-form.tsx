@@ -49,12 +49,16 @@ export function SignupForm() {
       });
       const result = await signup({ message: "", success: false }, formData);
       if (result.success) {
+        // Store email in localStorage for resend functionality
+        localStorage.setItem("pendingVerificationEmail", values.email);
+        localStorage.setItem("lastResendTime", Date.now().toString());
+
         toast({
           title: "Registration Successful",
           description: result.message,
         });
         // Redirect or clear form after a delay
-        setTimeout(() => router.push("/signin"), 2000);
+        setTimeout(() => router.push("/verify-email"), 2000);
       } else {
         setError(result.message);
       }

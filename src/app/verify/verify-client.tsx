@@ -33,18 +33,29 @@ export default function VerifyClient() {
 
         // Check if response has data and access_token
         if (response && response.data) {
-          const { ...user } = response.data;
+          const user = response.data;
 
-          // Update Auth Store
+          // Update Auth Store with complete user data
           setUser({
             id: user.id,
             name: user.name,
             email: user.email,
             role: user.role,
+            status: user.status,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+            address: user.address,
+            avatar_url: user.avatar_url,
+            phone_number: user.phone_number,
           });
         }
 
         setStatus("success");
+
+        // Clear verification email data from localStorage
+        localStorage.removeItem("pendingVerificationEmail");
+        localStorage.removeItem("lastResendTime");
+
         setTimeout(() => {
           router.push("/");
         }, 2000);
