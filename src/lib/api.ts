@@ -6,21 +6,61 @@ export const API_BASE_URL = isServer
   : "/api/v1";
 
 export class ApiError extends Error {
-  constructor(public message: string, public status: number) {
+  constructor(
+    public message: string,
+    public status: number,
+    public title?: string,
+    public data?: any
+  ) {
     super(message);
+    this.name = "ApiError";
   }
 }
 
-async function handleResponse(res: Response) {
+export interface ApiResponse<T = any> {
+  data: T;
+  message?: string;
+  title?: string;
+}
+
+async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
+  const contentType = res.headers.get("content-type");
+  const isJson = contentType?.includes("application/json");
+
   if (!res.ok) {
     let message = "An error occurred";
-    try {
-      const json = await res.json();
-      message = json.message || json.title || message;
-    } catch (e) {}
-    throw new ApiError(message, res.status);
+    let title = "Error";
+    let errorData = null;
+
+    if (isJson) {
+      try {
+        const json = await res.json();
+        message = json.message || json.error || message;
+        title = json.title || title;
+        errorData = json.data || json;
+      } catch (e) {
+        message = `Request failed with status ${res.status}`;
+      }
+    } else {
+      message = `Request failed with status ${res.status}`;
+    }
+
+    throw new ApiError(message, res.status, title, errorData);
   }
-  return res.json();
+
+  if (isJson) {
+    const json = await res.json();
+    return {
+      data: json.data || json,
+      message: json.message,
+      title: json.title,
+    };
+  }
+
+  return {
+    data: null as T,
+    message: "Success",
+  };
 }
 
 export async function apiSignin(data: any) {
@@ -38,6 +78,17 @@ export async function apiSignup(data: any) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
+    credentials: "include",
+  });
+  return handleResponse(res);
+}
+
+export async function apiLogout() {
+  const res = await fetch(`${API_BASE_URL}/user/logout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     credentials: "include",
   });
   return handleResponse(res);
@@ -119,17 +170,6 @@ export async function refreshSession(cookieHeader?: string) {
   }
 }
 
-export async function apiLogout() {
-  const res = await fetch(`${API_BASE_URL}/user/logout`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    credentials: "include",
-  });
-  return handleResponse(res);
-}
-
 export async function getAllUsers(
   page = 1,
   pageSize = 20,
@@ -154,11 +194,27 @@ export async function getUserById(id: string) {
   return handleResponse(res);
 }
 
-export async function updateUserRole(id: string, role: UserRole) {
+export async function adminUpdateUser(
+  id: string,
+  data: { role?: string; status?: string }
+) {
   const res = await fetch(`${API_BASE_URL}/user/${id}/role`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role }),
+    body: JSON.stringify(data),
+    credentials: "include",
+  });
+  return handleResponse(res);
+}
+
+export async function apiUpdateUser(data: {
+  address?: string;
+  phone_number?: string;
+}) {
+  const res = await fetch(`${API_BASE_URL}/user`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
     credentials: "include",
   });
   return handleResponse(res);

@@ -39,10 +39,16 @@ import {
   DialogTrigger,
 } from "../../../components/ui/dialog";
 import { useAuthStore } from "../../../lib/store";
-import { getAllUsers, updateUserRole, getUserById } from "../../../lib/api";
-import { useToast } from "../../../hooks/use-toast";
+import { getAllUsers, adminUpdateUser, getUserById } from "../../../lib/api";
+import { withToast, showErrorToast } from "../../../lib/api-toast";
 import { Input } from "../../../components/ui/input";
 import { Card, CardContent } from "../../../components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "../../../components/ui/tabs";
 
 interface User {
   id: string;
@@ -55,7 +61,6 @@ interface User {
 
 export default function UsersManagementPage() {
   const { user: currentUser } = useAuthStore();
-  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -77,33 +82,24 @@ export default function UsersManagementPage() {
       const res = await getAllUsers(1, 50, search);
       setUsers(res.data);
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to fetch users",
-        variant: "destructive",
-      });
+      showErrorToast(error, "Failed to fetch users");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRoleUpdate = async (userId: string, newRole: string) => {
+  const handleUserUpdate = async (
+    userId: string,
+    data: { role?: string; status?: string }
+  ) => {
     try {
       setUpdating(userId);
-      await updateUserRole(userId, newRole);
-      setUsers(
-        users.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
-      );
-      toast({
-        title: "Success",
-        description: "User role updated successfully",
+      await withToast(() => adminUpdateUser(userId, data), {
+        successMessage: "User updated successfully",
       });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update role",
-        variant: "destructive",
-      });
+      setUsers(users.map((u) => (u.id === userId ? { ...u, ...data } : u)));
+    } catch (error) {
+      // Error toast already shown by withToast
     } finally {
       setUpdating(null);
     }
@@ -113,13 +109,9 @@ export default function UsersManagementPage() {
     try {
       setViewLoading(true);
       const res = await getUserById(userId);
-      setSelectedUser(res);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to fetch user details",
-        variant: "destructive",
-      });
+      setSelectedUser(res.data || res);
+    } catch (error) {
+      showErrorToast(error, "Failed to fetch user details");
     } finally {
       setViewLoading(false);
     }
@@ -325,30 +317,106 @@ export default function UsersManagementPage() {
                               </DialogContent>
                             </Dialog>
 
-                            <Select
-                              disabled={
-                                updating === u.id || u.id === currentUser?.id
-                              }
-                              value={u.role}
-                              onValueChange={(value) =>
-                                handleRoleUpdate(u.id, value)
-                              }
-                            >
-                              <SelectTrigger className="w-[140px] bg-background">
-                                {updating === u.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <SelectValue placeholder="Update Role" />
-                                )}
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="user">User</SelectItem>
-                                <SelectItem value="management">
-                                  Manager
-                                </SelectItem>
-                                <SelectItem value="admin">Admin</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8"
+                                  disabled={
+                                    updating === u.id ||
+                                    u.id === currentUser?.id
+                                  }
+                                >
+                                  {updating === u.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    "Manage"
+                                  )}
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>
+                                    Manage User: {u.name}
+                                  </DialogTitle>
+                                  <DialogDescription>
+                                    Update user role or status.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <Tabs defaultValue="role" className="w-full">
+                                  <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="role">Role</TabsTrigger>
+                                    <TabsTrigger value="status">
+                                      Status
+                                    </TabsTrigger>
+                                  </TabsList>
+                                  <TabsContent value="role" className="pt-4">
+                                    <div className="space-y-4">
+                                      <p className="text-sm text-muted-foreground">
+                                        Select a new role for this user.
+                                      </p>
+                                      <Select
+                                        value={u.role}
+                                        onValueChange={(value) =>
+                                          handleUserUpdate(u.id, {
+                                            role: value,
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select Role" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="user">
+                                            User
+                                          </SelectItem>
+                                          <SelectItem value="management">
+                                            Manager
+                                          </SelectItem>
+                                          <SelectItem value="admin">
+                                            Admin
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </TabsContent>
+                                  <TabsContent value="status" className="pt-4">
+                                    <div className="space-y-4">
+                                      <p className="text-sm text-muted-foreground">
+                                        Update the user's account status.
+                                      </p>
+                                      <Select
+                                        value={u.status || "active"}
+                                        onValueChange={(value) =>
+                                          handleUserUpdate(u.id, {
+                                            status: value,
+                                          })
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select Status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="active">
+                                            Active
+                                          </SelectItem>
+                                          <SelectItem value="inactive">
+                                            Inactive
+                                          </SelectItem>
+                                          <SelectItem value="suspended">
+                                            Suspended
+                                          </SelectItem>
+                                          <SelectItem value="pending">
+                                            Pending
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </TabsContent>
+                                </Tabs>
+                              </DialogContent>
+                            </Dialog>
                           </div>
                         </TableCell>
                       </TableRow>

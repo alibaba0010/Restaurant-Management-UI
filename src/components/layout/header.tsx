@@ -19,7 +19,6 @@ import { LogOut, Settings, User as UserIcon } from "lucide-react";
 export default function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
   const router = useRouter();
-
   const handleLogout = async () => {
     try {
       await apiLogout();
@@ -65,8 +64,10 @@ export default function Header() {
                       className="relative h-10 w-10 rounded-full"
                     >
                       <Avatar>
-                        {/* Placeholder for user image if we had one */}
-                        <AvatarImage src="" alt={user.name} />
+                        <AvatarImage
+                          src={user.avatar_url || ""}
+                          alt={user.name}
+                        />
                         <AvatarFallback>
                           {getInitials(user.name)}
                         </AvatarFallback>

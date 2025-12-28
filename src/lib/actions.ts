@@ -1,10 +1,7 @@
 "use server";
 
-import { z } from "zod";
-import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { SignupFormSchema } from "./definitions";
-import { apiSignin, apiSignup } from "./api";
+import { apiSignup } from "./api";
 
 export type SignupState = {
   message: string;

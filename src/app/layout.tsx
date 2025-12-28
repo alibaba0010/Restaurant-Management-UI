@@ -25,21 +25,24 @@ export default async function RootLayout({
     const refresh = await refreshSession(cookieStore.toString());
     if (refresh.success && refresh.token) {
       try {
-        user = await getCurrentUser(refresh.token);
+        const response = await getCurrentUser(refresh.token);
+        user = response.data;
       } catch (e) {
         console.error("Failed to get user after refresh", e);
       }
     }
   } else if (access_token) {
     try {
-      user = await getCurrentUser(access_token);
+      const response = await getCurrentUser(access_token);
+      user = response.data;
     } catch (error: any) {
       if (error.status === 401 && refresh_token) {
         // Access token expired, try to refresh
         const refresh = await refreshSession(cookieStore.toString());
         if (refresh.success && refresh.token) {
           try {
-            user = await getCurrentUser(refresh.token);
+            const response = await getCurrentUser(refresh.token);
+            user = response.data;
           } catch (e) {
             console.error("Failed to get user after layout refresh", e);
           }
