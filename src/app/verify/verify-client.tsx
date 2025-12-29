@@ -21,6 +21,7 @@ export default function VerifyClient() {
     "verifying"
   );
   const setUser = useAuthStore((state) => state.setUser);
+  const setAccessToken = useAuthStore((state) => state.setAccessToken);
   useEffect(() => {
     if (!token) {
       setStatus("error");
@@ -34,6 +35,11 @@ export default function VerifyClient() {
         // Check if response has data and access_token
         if (response && response.data) {
           const user = response.data;
+
+          // Store Access Token in Zustand
+          if (response.data.access_token) {
+            setAccessToken(response.data.access_token);
+          }
 
           // Update Auth Store with complete user data
           setUser({

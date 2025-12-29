@@ -19,6 +19,8 @@ export default async function RootLayout({
   const access_token = cookieStore.get("access_token")?.value;
   const refresh_token = cookieStore.get("refresh_token")?.value;
   const headersList = await headers();
+  const { accessToken } = useAuthStore.getState();
+  console.log("Access Token in Layout", accessToken);
   const userAgent = headersList.get("user-agent") || "";
   const cookieHeader = headersList.get("cookie") || "";
   let user = null;
@@ -73,7 +75,9 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider user={user}>{children}</AuthProvider>
+        <AuthProvider user={user} accessToken={validToken}>
+          {children}
+        </AuthProvider>
         <Toaster />
       </body>
     </html>

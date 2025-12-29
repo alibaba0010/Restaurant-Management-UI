@@ -5,14 +5,20 @@ import { useAuthStore } from "../../lib/store";
 
 export default function AuthProvider({
   user,
+  accessToken,
   children,
 }: {
   user: any;
+  accessToken?: string | null;
   children: React.ReactNode;
 }) {
   const initialized = useRef(false);
   if (!initialized.current) {
-    useAuthStore.setState({ user: user, isAuthenticated: !!user });
+    useAuthStore.setState({
+      user: user,
+      accessToken: accessToken || null,
+      isAuthenticated: !!user,
+    });
     initialized.current = true;
   }
 

@@ -67,6 +67,8 @@ type FetchOptions = RequestInit & {
   cookieHeader?: string;
 };
 
+import { useAuthStore } from "./store";
+
 async function fetchClient(endpoint: string, options: FetchOptions = {}) {
   const { userAgent, cookieHeader, headers: customHeaders, ...rest } = options;
   const headers: Record<string, string> = {
@@ -76,6 +78,14 @@ async function fetchClient(endpoint: string, options: FetchOptions = {}) {
 
   if (userAgent) headers["User-Agent"] = userAgent;
   if (cookieHeader) headers["Cookie"] = cookieHeader;
+
+  // If client-side and no specific token override (via Authorization header already), try to get from store
+  if (!isServer && !headers["Authorization"]) {
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+  }
 
   const res = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers,
@@ -121,6 +131,7 @@ export async function getCurrentUser(
   userAgent?: string,
   cookieHeader?: string
 ) {
+  console.log("getCurrentUser", token, userAgent, cookieHeader);
   const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -137,15 +148,6 @@ export async function apiRefreshToken(
   cookieHeader?: string,
   userAgent?: string
 ) {
-  // We need to return the raw response for refreshSession to parse Set-Cookie,
-  // so we don't use fetchClient's handleResponse wrapper here entirely,
-  // OR we modify fetchClient to return raw response if requested.
-  // But simpler to just keep specific logic for this one or adapt fetchClient.
-  // Actually, handleResponse throws if not OK, but returns object if OK.
-  // apiRefreshToken is typically used by refreshSession which expects raw fetch response in the original code?
-  // Checking original code: apiRefreshToken returns `fetch(...)`. It returns a Promise<Response>.
-  // So we should NOT use fetchClient/handleResponse for apiRefreshToken.
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -159,10 +161,6 @@ export async function apiRefreshToken(
   });
 }
 
-/**
- * Shared helper to refresh session and extract the new access token.
- * Useful for both Middleware and Server Components (Layouts/Pages).
- */
 export async function refreshSession(
   cookieHeader?: string,
   userAgent?: string
@@ -184,6 +182,9 @@ export async function refreshSession(
 
   try {
     const data = await res.json();
+    // Access token is now in the response body!
+    const token = data.access_token || data.data?.access_token || null;
+
     return {
       success: true,
       token,
@@ -191,10 +192,11 @@ export async function refreshSession(
       setCookies,
     };
   } catch (e) {
+    console.error("Failed to parse refresh response", e);
     return {
-      success: true,
-      token,
-      message: "Refreshed successfully",
+      success: false, // if we can't parse the new token, it's effectively a failure
+      token: null,
+      message: "Refresh failed to parse",
       setCookies,
     };
   }

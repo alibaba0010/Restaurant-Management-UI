@@ -28,6 +28,7 @@ export function SigninForm() {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const setUser = useAuthStore((state) => state.setUser);
+  const setAccessToken = useAuthStore((state) => state.setAccessToken);
 
   const form = useForm<z.infer<typeof SigninFormSchema>>({
     resolver: zodResolver(SigninFormSchema),
@@ -42,8 +43,12 @@ export function SigninForm() {
     startTransition(async () => {
       try {
         const response = await apiSignin(values);
-
         if (response && response.data) {
+          // Store Access Token in Zustand
+          if (response.data.access_token) {
+            setAccessToken(response.data.access_token);
+          }
+
           // Update Auth Store
           setUser(response.data);
 

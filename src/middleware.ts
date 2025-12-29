@@ -31,19 +31,12 @@ export async function middleware(request: NextRequest) {
       const cookieHeader = request.headers.get("cookie") || "";
       const refresh = await refreshSession(cookieHeader, userAgent);
 
-      if (refresh.success && refresh.setCookies) {
-        // Propagate Set-Cookie headers from backend to browser
+      if (refresh.success) {
+        // 2. Propagate Set-Cookie headers from backend (e.g. rotated refresh token)
+        if (refresh.setCookies) {
         refresh.setCookies.forEach((cookieString) => {
           const [nameValue] = cookieString.split(";");
           const [name, value] = nameValue.split("=");
-
-          response.cookies.set({
-            name: name.trim(),
-            value: value.trim(),
-            path: "/",
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
           });
         });
       }
