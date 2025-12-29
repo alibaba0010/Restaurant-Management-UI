@@ -4,6 +4,7 @@ import { Toaster } from "../components/ui/toaster";
 import AuthProvider from "../components/providers/auth-provider";
 import { cookies, headers } from "next/headers";
 import { getCurrentUser, refreshSession } from "../lib/api";
+import { useAuthStore } from "@/lib/store";
 
 export const metadata: Metadata = {
   title: "GourmetHub",
@@ -20,16 +21,24 @@ export default async function RootLayout({
   const refresh_token = cookieStore.get("refresh_token")?.value;
   const headersList = await headers();
   const { accessToken } = useAuthStore.getState();
-  console.log("Access Token in Layout", accessToken);
+
+  // First check if accessToken from store is not null, if null use accessToken from cookie
+  const finalAccessToken = accessToken || access_token;
+
+  console.log("Access Token from Store:", accessToken);
+  console.log("Access Token from Cookie:", access_token);
+  console.log("Final Access Token:", finalAccessToken);
+
   const userAgent = headersList.get("user-agent") || "";
   const cookieHeader = headersList.get("cookie") || "";
   let user = null;
+  let validToken = finalAccessToken || null;
 
   // 1. Try to get user with existing access token
-  if (access_token) {
+  if (finalAccessToken) {
     try {
       const response = await getCurrentUser(
-        access_token,
+        finalAccessToken,
         userAgent,
         cookieHeader
       );
@@ -38,12 +47,12 @@ export default async function RootLayout({
       if (error.status !== 401) {
         console.error("Failed to fetch user:", error);
       }
-      // If 401, we will fall through to refresh logic below
+      validToken = null;
     }
   }
 
   // 2. If no user (missing or expired access token) AND we have a refresh token, try to refresh
-  if (!user && refresh_token) {
+  if (!finalAccessToken && refresh_token) {
     try {
       const refresh = await refreshSession(cookieHeader, userAgent);
       if (refresh.success && refresh.token) {
@@ -54,6 +63,7 @@ export default async function RootLayout({
           cookieHeader
         );
         user = response.data;
+        validToken = refresh.token;
       }
     } catch (e) {
       console.error("Session refresh failed:", e);
@@ -75,9 +85,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider user={user} accessToken={validToken}>
-          {children}
-        </AuthProvider>
+        <AuthProvider user={user}>{children}</AuthProvider>
         <Toaster />
       </body>
     </html>

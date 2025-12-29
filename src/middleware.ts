@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { refreshSession } from "./lib/api";
+import { useAuthStore } from "./lib/store";
 
 // Helper to check if token is expired
 function isTokenExpired(token: string): boolean {
@@ -18,12 +19,16 @@ export async function middleware(request: NextRequest) {
   const access_token = request.cookies.get("access_token")?.value;
   const refresh_token = request.cookies.get("refresh_token")?.value;
 
+  // First check if accessToken from store is not null, if null use accessToken from cookie
+  const { accessToken } = useAuthStore.getState();
+  const finalAccessToken = accessToken || access_token;
+
   const response = NextResponse.next();
 
   // If we have no refresh token, we can't refresh, just return
   if (!refresh_token) return response;
 
-  const shouldRefresh = !access_token || isTokenExpired(access_token);
+  const shouldRefresh = !finalAccessToken || isTokenExpired(finalAccessToken);
 
   if (shouldRefresh && refresh_token) {
     try {
@@ -34,11 +39,11 @@ export async function middleware(request: NextRequest) {
       if (refresh.success) {
         // 2. Propagate Set-Cookie headers from backend (e.g. rotated refresh token)
         if (refresh.setCookies) {
-        refresh.setCookies.forEach((cookieString) => {
-          const [nameValue] = cookieString.split(";");
-          const [name, value] = nameValue.split("=");
+          refresh.setCookies.forEach((cookieString) => {
+            const [nameValue] = cookieString.split(";");
+            const [name, value] = nameValue.split("=");
           });
-        });
+        }
       }
     } catch (error) {
       console.error("Middleware refresh failed", error);
