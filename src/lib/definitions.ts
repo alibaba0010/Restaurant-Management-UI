@@ -86,9 +86,11 @@ export const RestaurantFormSchema = z.object({
   description: z.string().max(500).optional(),
   address: z
     .string()
-    .min(5, { message: "Address must be at least 5 characters." })
-    .max(200),
-  cuisine_type: z.string().optional(),
+    .min(5, { message: "Address must be at least 5 characters." }),
+  avatar_url: z.string().url().optional().or(z.literal("")),
+  capacity: z.number().int().min(0).optional(),
+  delivery_available: z.boolean().default(false),
+  takeaway_available: z.boolean().default(false),
 });
 
 export const ForgotPasswordSchema = z.object({
@@ -118,12 +120,19 @@ export const ResetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+import { RestaurantStatus } from "./types";
+
 export interface Restaurant {
   id: string;
   name: string;
   description?: string;
   address: string;
-  cuisine_type?: string;
+  avatar_url?: string;
+  status: RestaurantStatus;
+  user_id?: string;
+  capacity?: number;
+  delivery_available: boolean;
+  takeaway_available: boolean;
   rating?: number;
   created_at: string;
   updated_at: string;

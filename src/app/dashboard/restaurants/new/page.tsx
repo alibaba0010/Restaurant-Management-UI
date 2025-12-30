@@ -13,14 +13,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useFormState } from "react-dom";
 import { createRestaurantAction } from "./actions";
 import { useRouter } from "next/navigation";
+import { useActionState } from "react";
 
 export default function NewRestaurantPage() {
   const router = useRouter();
   const initialState = { message: "", errors: {} };
-  const [state, dispatch] = useFormState(createRestaurantAction, initialState);
+  const [state, dispatch] = useActionState(
+    createRestaurantAction,
+    initialState
+  );
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -84,17 +87,55 @@ export default function NewRestaurantPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cuisine_type">Cuisine Type</Label>
+                <Label htmlFor="avatar_url">Avatar URL</Label>
                 <Input
-                  id="cuisine_type"
-                  name="cuisine_type"
-                  placeholder="e.g. Italian, Mexican, Vegan"
+                  id="avatar_url"
+                  name="avatar_url"
+                  placeholder="https://example.com/logo.png"
                 />
-                {state.errors?.cuisine_type && (
+                {state.errors?.avatar_url && (
                   <p className="text-sm text-destructive">
-                    {state.errors.cuisine_type.join(", ")}
+                    {state.errors.avatar_url.join(", ")}
                   </p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="capacity">Capacity</Label>
+                <Input
+                  id="capacity"
+                  name="capacity"
+                  type="number"
+                  placeholder="Seating capacity"
+                  min={0}
+                />
+                {state.errors?.capacity && (
+                  <p className="text-sm text-destructive">
+                    {state.errors.capacity.join(", ")}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="delivery_available"
+                  name="delivery_available"
+                  value="true"
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="delivery_available">Delivery Available</Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="takeaway_available"
+                  name="takeaway_available"
+                  value="true"
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor="takeaway_available">Takeaway Available</Label>
               </div>
 
               {state.message && (

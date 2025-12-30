@@ -20,6 +20,16 @@ export enum UserStatus {
   DELETED = "deleted",
 }
 
+/**
+ * RestaurantStatus represents the different statuses a restaurant can have.
+ */
+export enum RestaurantStatus {
+  ACTIVE = "active",
+  INACTIVE = "inactive",
+  BLOCKED = "blocked",
+  DELETED = "deleted",
+}
+
 export interface User {
   id: string;
   name: string;

@@ -10,29 +10,57 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { Upload, Plus, Store } from "lucide-react";
+import { Upload, Plus, Store, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { useRestaurantStore } from "../../lib/store";
-import { getRestaurants } from "../../lib/api";
+import { useRestaurantStore, useAuthStore } from "../../lib/store";
+import { getRestaurants, getAllUsers } from "../../lib/api";
+import { UserRole } from "@/lib/types";
 
 export default function DashboardPage() {
   const { restaurants, setRestaurants } = useRestaurantStore();
+  const { user: currentUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
+  const [userCount, setUserCount] = useState(0);
+  const [restaurantCount, setRestaurantCount] = useState(0);
+  const isAdmin = currentUser?.role === UserRole.ADMIN;
+  const isManagement = currentUser?.role === UserRole.MANAGEMENT;
+  const isUser = currentUser?.role === UserRole.USER;
 
   useEffect(() => {
-    async function fetchRestaurants() {
+    async function fetchData() {
       try {
-        const res = await getRestaurants();
-        setRestaurants(res.data || []);
+        // Only fetch restaurants for admin or management
+        if (isAdmin || isManagement) {
+          const res = await getRestaurants();
+          setRestaurants(res.data || []);
+          setRestaurantCount(res.meta?.total || res.data?.length || 0);
+        }
+
+        // Fetch user count only for admins
+        if (isAdmin) {
+          try {
+            const usersRes = await getAllUsers(
+              1,
+              1,
+              "",
+              "",
+              "created_at",
+              "desc"
+            );
+            setUserCount(usersRes.meta?.total || usersRes.data?.length || 0);
+          } catch (err) {
+            console.error("Failed to fetch user count", err);
+          }
+        }
       } catch (err) {
         console.error("Failed to fetch restaurants", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchRestaurants();
-  }, [setRestaurants]);
+    fetchData();
+  }, [setRestaurants, isAdmin]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -64,59 +92,121 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-headline text-accent">
-                <Store className="h-5 w-5 text-primary" />
-                Manage Restaurants
-              </CardTitle>
-              <CardDescription>
-                View and manage your restaurant listings.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-2">
-                <div className="text-sm text-muted-foreground mb-2">
-                  {loading
-                    ? "Loading..."
-                    : `You have ${restaurants.length} restaurants listed.`}
+          {/* User Management Card - Admin Only */}
+          {isAdmin && (
+            <Card className="hover:shadow-lg transition-shadow border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline text-accent">
+                  <Users className="h-5 w-5 text-primary" />
+                  User Management
+                </CardTitle>
+                <CardDescription>
+                  Manage user accounts, roles, and permissions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-2">
+                  <div className="text-sm text-muted-foreground mb-2">
+                    {loading ? "Loading..." : `Total users: ${userCount}`}
+                  </div>
+                  <Button asChild>
+                    <Link href="/dashboard/users">Manage Users</Link>
+                  </Button>
                 </div>
-                <Button asChild variant="outline">
-                  <Link href="/dashboard/restaurants/new">
-                    <Plus className="mr-2 h-4 w-4" /> Add Restaurant
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+          )}
 
-        <div className="mt-12">
-          <h2 className="text-2xl font-headline text-accent mb-6">
-            Recent Restaurants
-          </h2>
-          {loading ? (
-            <p>Loading...</p>
-          ) : restaurants.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {restaurants.slice(0, 3).map((r) => (
-                <Card key={r.id}>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{r.name}</CardTitle>
-                    <CardDescription>{r.cuisine_type}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm line-clamp-2">{r.description}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground">
-              No restaurants found. Create your first one!
-            </p>
+          {!isUser && (
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-headline text-accent">
+                  <Store className="h-5 w-5 text-primary" />
+                  Restaurants Management
+                </CardTitle>
+                <CardDescription>
+                  View and manage your restaurant listings.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isManagement && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      {loading
+                        ? "Loading..."
+                        : `You have ${restaurantCount} restaurants listed.`}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        asChild
+                        variant="default"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        <Link href="/dashboard/restaurants">View All</Link>
+                      </Button>
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        <Link href="/dashboard/restaurants/new">
+                          <Plus className="mr-2 h-4 w-4" /> Add
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {isAdmin && (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-sm text-muted-foreground mb-2">
+                      {loading
+                        ? "Loading..."
+                        : `Total Restaurant: ${restaurantCount}`}
+                    </div>
+                    <Button asChild>
+                      <Link href="/dashboard/restaurants">Manage All</Link>
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
         </div>
+
+        {!isUser && (
+          <div className="mt-12">
+            <h2 className="text-2xl font-headline text-accent mb-6">
+              Recent Restaurants
+            </h2>
+            {loading ? (
+              <p>Loading...</p>
+            ) : restaurants.length > 0 ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {restaurants.slice(0, 3).map((r) => (
+                  <Link href={`/dashboard/restaurants/${r.id}`} key={r.id}>
+                    <Card className="hover:shadow-lg transition-shadow h-full">
+                      <CardHeader>
+                        <CardTitle className="text-lg">{r.name}</CardTitle>
+                        <CardDescription>
+                          <span className="capitalize">{r.status}</span>
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm line-clamp-2">{r.description}</p>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                No restaurants found. Create your first one!
+              </p>
+            )}
+          </div>
+        )}
       </main>
       <Footer />
     </div>

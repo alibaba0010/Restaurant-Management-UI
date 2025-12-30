@@ -12,7 +12,8 @@ export type CreateRestaurantState = {
     name?: string[];
     description?: string[];
     address?: string[];
-    cuisine_type?: string[];
+    avatar_url?: string[];
+    capacity?: string[];
   };
   success?: boolean;
 };
@@ -25,7 +26,12 @@ export async function createRestaurantAction(
     name: formData.get("name"),
     description: formData.get("description"),
     address: formData.get("address"),
-    cuisine_type: formData.get("cuisine_type"),
+    avatar_url: formData.get("avatar_url"),
+    capacity: formData.get("capacity")
+      ? Number(formData.get("capacity"))
+      : undefined,
+    delivery_available: formData.get("delivery_available") === "true",
+    takeaway_available: formData.get("takeaway_available") === "true",
   });
 
   if (!validatedFields.success) {

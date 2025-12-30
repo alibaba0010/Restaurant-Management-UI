@@ -5,7 +5,6 @@ import AuthProvider from "../components/providers/auth-provider";
 import { cookies, headers } from "next/headers";
 import { getCurrentUser, refreshSession } from "../lib/api";
 import { useAuthStore } from "@/lib/store";
-
 export const metadata: Metadata = {
   title: "GourmetHub",
   description: "Discover and share amazing recipes.",
@@ -24,10 +23,6 @@ export default async function RootLayout({
 
   // First check if accessToken from store is not null, if null use accessToken from cookie
   const finalAccessToken = accessToken || access_token;
-
-  console.log("Access Token from Store:", accessToken);
-  console.log("Access Token from Cookie:", access_token);
-  console.log("Final Access Token:", finalAccessToken);
 
   const userAgent = headersList.get("user-agent") || "";
   const cookieHeader = headersList.get("cookie") || "";

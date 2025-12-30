@@ -21,6 +21,12 @@ export interface ApiResponse<T = any> {
   data: T;
   message?: string;
   title?: string;
+  meta?: {
+    total?: number;
+    page?: number;
+    page_size?: number;
+    total_pages?: number;
+  };
 }
 
 async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
@@ -53,6 +59,7 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
       data: json.data || json,
       message: json.message,
       title: json.title,
+      meta: json.meta,
     };
   }
 
@@ -72,9 +79,14 @@ import { useAuthStore } from "./store";
 async function fetchClient(endpoint: string, options: FetchOptions = {}) {
   const { userAgent, cookieHeader, headers: customHeaders, ...rest } = options;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...(customHeaders as Record<string, string>),
   };
+
+  // Set default content type if not provided and not FormData
+  // Note: We check if body is FormData. In Node environment this might need check, but for client side it works.
+  if (!headers["Content-Type"] && !(rest.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (userAgent) headers["User-Agent"] = userAgent;
   if (cookieHeader) headers["Cookie"] = cookieHeader;
@@ -131,7 +143,6 @@ export async function getCurrentUser(
   userAgent?: string,
   cookieHeader?: string
 ) {
-  console.log("getCurrentUser", token, userAgent, cookieHeader);
   const headers: Record<string, string> = {};
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -248,7 +259,7 @@ export async function createRestaurant(data: any, token?: string) {
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
-  return fetchClient("/restaurant", {
+  return fetchClient("/restaurants", {
     method: "POST",
     headers,
     body: JSON.stringify(data),
@@ -257,11 +268,24 @@ export async function createRestaurant(data: any, token?: string) {
 
 export async function getRestaurants(page = 1, pageSize = 20, query = "") {
   return fetchClient(
-    `/restaurant?page=${page}&page_size=${pageSize}&q=${query}`,
+    `/restaurants?page=${page}&page_size=${pageSize}&q=${query}`,
     {
       cache: "no-store",
     }
   );
+}
+
+export async function getRestaurantById(id: string) {
+  return fetchClient(`/restaurants/${id}`, {
+    cache: "no-store",
+  });
+}
+
+export async function updateRestaurant(id: string, data: any) {
+  return fetchClient(`/restaurants/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function apiForgotPassword(
@@ -280,5 +304,22 @@ export async function apiResetPassword(data: any, userAgent?: string) {
     method: "POST",
     body: JSON.stringify(data),
     userAgent,
+  });
+}
+
+export async function uploadMenuMedia(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return fetchClient("/menus/upload", {
+    method: "POST",
+    body: formData,
+  });
+}
+
+export async function createMenu(data: any) {
+  return fetchClient("/menus", {
+    method: "POST",
+    body: JSON.stringify(data),
   });
 }
