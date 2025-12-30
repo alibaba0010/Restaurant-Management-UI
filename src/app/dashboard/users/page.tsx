@@ -52,6 +52,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../../components/ui/tabs";
+import { BackButton } from "../../../components/ui/back-button";
 
 interface User {
   id: string;
@@ -185,6 +186,7 @@ export default function UsersManagementPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <BackButton label="Back to Dashboard" href="/dashboard" />
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div>
             <h1 className="text-4xl font-headline text-accent mb-2">

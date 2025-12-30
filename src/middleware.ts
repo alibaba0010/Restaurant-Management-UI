@@ -23,10 +23,7 @@ export async function middleware(request: NextRequest) {
   const { accessToken } = useAuthStore.getState();
   const finalAccessToken = accessToken || access_token;
 
-  const response = NextResponse.next();
-
-  // If we have no refresh token, we can't refresh, just return
-  if (!refresh_token) return response;
+  let refreshResult = { success: false, setCookies: [] as string[] };
 
   const shouldRefresh = !finalAccessToken || isTokenExpired(finalAccessToken);
 
@@ -35,19 +32,36 @@ export async function middleware(request: NextRequest) {
       const userAgent = request.headers.get("user-agent") || "";
       const cookieHeader = request.headers.get("cookie") || "";
       const refresh = await refreshSession(cookieHeader, userAgent);
-
       if (refresh.success) {
-        // 2. Propagate Set-Cookie headers from backend (e.g. rotated refresh token)
-        if (refresh.setCookies) {
-          refresh.setCookies.forEach((cookieString) => {
-            const [nameValue] = cookieString.split(";");
-            const [name, value] = nameValue.split("=");
-          });
-        }
+        refreshResult = refresh as any;
       }
     } catch (error) {
       console.error("Middleware refresh failed", error);
     }
+  }
+
+  // Create a new request with the updated headers
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-url", request.url);
+
+  // Propagate Set-Cookie headers from backend to the new request as well
+  if (refreshResult.success && refreshResult.setCookies) {
+    refreshResult.setCookies.forEach((cookieString: string) => {
+      requestHeaders.append("Set-Cookie", cookieString);
+    });
+  }
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  // Re-apply Set-Cookie headers to the response so they reach the browser
+  if (refreshResult.success && refreshResult.setCookies) {
+    refreshResult.setCookies.forEach((cookieString: string) => {
+      response.headers.append("Set-Cookie", cookieString);
+    });
   }
 
   return response;

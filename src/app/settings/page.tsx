@@ -17,6 +17,7 @@ import { useAuthStore } from "../../lib/store";
 import { apiUpdateUser } from "../../lib/api";
 import { withToast } from "../../lib/api-toast";
 import { Loader2, MapPin, Phone, User as UserIcon } from "lucide-react";
+import { BackButton } from "../../components/ui/back-button";
 
 export default function SettingsPage() {
   const { user, setUser } = useAuthStore();
@@ -63,6 +64,7 @@ export default function SettingsPage() {
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
+          <BackButton label="Back to Dashboard" href="/dashboard" />
           <h1 className="text-4xl font-headline text-accent mb-8">Settings</h1>
 
           <div className="grid gap-8">

@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { useRestaurantStore, useAuthStore } from "../../lib/store";
 import { getRestaurants, getAllUsers } from "../../lib/api";
 import { UserRole } from "@/lib/types";
+import { BackButton } from "../../components/ui/back-button";
 
 export default function DashboardPage() {
   const { restaurants, setRestaurants } = useRestaurantStore();
@@ -66,6 +67,7 @@ export default function DashboardPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <BackButton label="Back to Home" href="/" />
         <div className="space-y-4 mb-8">
           <h1 className="text-3xl font-headline text-accent">Your Dashboard</h1>
           <p className="text-muted-foreground">
@@ -74,24 +76,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-headline text-accent">
-                <Upload className="h-5 w-5 text-primary" />
-                Share a Recipe
-              </CardTitle>
-              <CardDescription>
-                Got a new creation? Upload images and videos to inspire the
-                community.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild>
-                <Link href="/upload">Upload Now</Link>
-              </Button>
-            </CardContent>
-          </Card>
-
           {/* User Management Card - Admin Only */}
           {isAdmin && (
             <Card className="hover:shadow-lg transition-shadow border-primary/20">
@@ -166,7 +150,9 @@ export default function DashboardPage() {
                         : `Total Restaurant: ${restaurantCount}`}
                     </div>
                     <Button asChild>
-                      <Link href="/dashboard/restaurants">Manage All</Link>
+                      <Link href="/dashboard/restaurants">
+                        Manage Restaurants
+                      </Link>
                     </Button>
                   </div>
                 )}

@@ -2,9 +2,9 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { RestaurantFormSchema } from "@/lib/definitions";
 import { createRestaurant } from "@/lib/api";
+import { getServerTokens } from "@/lib/server-tokens";
 
 export type CreateRestaurantState = {
   message?: string;
@@ -42,8 +42,7 @@ export async function createRestaurantAction(
     };
   }
 
-  const cookieStore = await cookies();
-  const token = cookieStore.get("access_token")?.value;
+  const { accessToken: token } = await getServerTokens();
 
   if (!token) {
     return {

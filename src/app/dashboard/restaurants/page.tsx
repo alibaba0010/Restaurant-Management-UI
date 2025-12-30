@@ -17,6 +17,7 @@ import { useRestaurantStore, useAuthStore } from "@/lib/store";
 import { getRestaurants } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { UserRole, RestaurantStatus } from "@/lib/types";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function RestaurantsListPage() {
   const { restaurants, setRestaurants } = useRestaurantStore();
@@ -48,6 +49,7 @@ export default function RestaurantsListPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <BackButton label="Back to Dashboard" href="/dashboard" />
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-headline text-accent">Restaurants</h1>

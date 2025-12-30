@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "../components/ui/toaster";
 import AuthProvider from "../components/providers/auth-provider";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { getCurrentUser, refreshSession } from "../lib/api";
+import { getServerTokens } from "../lib/server-tokens";
 import { useAuthStore } from "@/lib/store";
+import { redirect } from "next/navigation";
+
 export const metadata: Metadata = {
   title: "GourmetHub",
   description: "Discover and share amazing recipes.",
@@ -15,9 +18,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const access_token = cookieStore.get("access_token")?.value;
-  const refresh_token = cookieStore.get("refresh_token")?.value;
+  const { accessToken: access_token, refreshToken: refresh_token } =
+    await getServerTokens();
   const headersList = await headers();
   const { accessToken } = useAuthStore.getState();
 
@@ -27,7 +29,6 @@ export default async function RootLayout({
   const userAgent = headersList.get("user-agent") || "";
   const cookieHeader = headersList.get("cookie") || "";
   let user = null;
-  let validToken = finalAccessToken || null;
 
   // 1. Try to get user with existing access token
   if (finalAccessToken) {
@@ -42,12 +43,12 @@ export default async function RootLayout({
       if (error.status !== 401) {
         console.error("Failed to fetch user:", error);
       }
-      validToken = null;
     }
   }
 
   // 2. If no user (missing or expired access token) AND we have a refresh token, try to refresh
-  if (!finalAccessToken && refresh_token) {
+  // This serves as a secondary check if middleware didn't catch it
+  if (!user && refresh_token) {
     try {
       const refresh = await refreshSession(cookieHeader, userAgent);
       if (refresh.success && refresh.token) {
@@ -58,11 +59,32 @@ export default async function RootLayout({
           cookieHeader
         );
         user = response.data;
-        validToken = refresh.token;
       }
     } catch (e) {
       console.error("Session refresh failed:", e);
     }
+  }
+
+  // 3. Reroute to "/" if no user found and not already on a public page
+  // We use the 'x-url' header set in middleware to check the current path
+  const url = headersList.get("x-url");
+  let pathname = "";
+  try {
+    pathname = url ? new URL(url).pathname : "";
+  } catch (e) {
+    // Handle invalid URLs if any
+  }
+
+  const isPublicPath =
+    pathname === "/" ||
+    pathname.startsWith("/signin") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/verify") ||
+    pathname.startsWith("/forgot-password");
+  // pathname.startsWith("/dashboard") ||
+
+  if (!user && !isPublicPath) {
+    redirect("/");
   }
 
   return (

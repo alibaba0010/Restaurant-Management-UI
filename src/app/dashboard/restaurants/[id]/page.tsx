@@ -6,6 +6,7 @@ import { Plus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { getRestaurantById } from "@/lib/api";
 import { MenuForm } from "@/components/restaurants/menu-form";
+import { BackButton } from "@/components/ui/back-button";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import {
@@ -52,13 +53,7 @@ export default function RestaurantDetailsPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <Link
-          href="/dashboard/restaurants"
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-6 group w-fit"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Back to Restaurants
-        </Link>
+        <BackButton label="Back to Restaurants" href="/dashboard/restaurants" />
         <div className="mb-8">
           <h1 className="text-3xl font-headline text-accent mb-2">
             {restaurant.name}

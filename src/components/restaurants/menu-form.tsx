@@ -18,7 +18,8 @@ import {
 import { createMenu, uploadMenuMedia } from "@/lib/api";
 import {
   Loader2,
-  Upload,
+  UploadCloud,
+  Video,
   X,
   Utensils,
   DollarSign,
@@ -122,7 +123,11 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
     type: "image" | "video"
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    await processFileUpload(e.target.files[0], type);
+    const files = Array.from(e.target.files);
+
+    for (const file of files) {
+      await processFileUpload(file, type);
+    }
     e.target.value = "";
   };
 
@@ -153,118 +158,142 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="space-y-4">
-          {/* File Upload Area */}
-          <div
-            className={`relative border-2 border-dashed rounded-lg p-6 bg-muted/20 hover:bg-muted/40 transition-colors text-center ${
-              dragActive
-                ? "border-primary bg-primary/10"
-                : "border-muted-foreground/25"
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className="flex flex-col items-center gap-2">
-              <div className="p-3 bg-background rounded-full shadow-sm">
-                <Upload className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-medium text-sm">Upload Media</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Drag & drop or select files
-                </p>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs h-8"
+        <div className="space-y-6">
+          {/* Recipe Images */}
+          <div className="space-y-2">
+            <FormLabel className="text-accent font-semibold">
+              Recipe Images
+            </FormLabel>
+            <div
+              className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 group ${
+                dragActive
+                  ? "border-primary bg-primary/5 ring-4 ring-primary/10"
+                  : "border-muted-foreground/20 bg-muted/5 hover:bg-muted/10 hover:border-primary/50"
+              }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <div className="flex flex-col items-center justify-center space-y-3">
+                <div className="p-4 bg-background rounded-full shadow-sm group-hover:scale-110 transition-transform duration-300">
+                  <UploadCloud className="w-8 h-8 text-primary" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium">
+                    <span className="text-primary hover:underline cursor-pointer">
+                      Click to upload
+                    </span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      or drag and drop
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PNG, JPG, GIF up to 10MB
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  onChange={(e) => handleFileUpload(e, "image")}
                   disabled={uploading}
-                  onClick={() =>
-                    document.getElementById("image-upload-trigger")?.click()
-                  }
-                >
-                  <ImageIcon className="w-3 h-3 mr-2" /> Image
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="text-xs h-8"
-                  disabled={uploading}
-                  onClick={() =>
-                    document.getElementById("video-upload-trigger")?.click()
-                  }
-                >
-                  <FileVideo className="w-3 h-3 mr-2" /> Video
-                </Button>
+                />
               </div>
-
-              <input
-                type="file"
-                accept="image/*"
-                id="image-upload-trigger"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, "image")}
-              />
-              <input
-                type="file"
-                accept="video/*"
-                id="video-upload-trigger"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e, "video")}
-              />
+              {uploading && (
+                <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10 transition-all">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <p className="text-xs font-medium text-primary animate-pulse">
+                      Uploading...
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-            {uploading && (
-              <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg backdrop-blur-[1px]">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+
+            {images.length > 0 && (
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 mt-4">
+                {images.map((url, i) => (
+                  <div
+                    key={i}
+                    className="relative aspect-square rounded-lg overflow-hidden group border-2 border-muted/20 hover:border-primary/50 transition-all shadow-sm"
+                  >
+                    <Image
+                      src={url}
+                      alt="Menu Item"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setImages(images.filter((_, idx) => idx !== i))
+                        }
+                        className="bg-destructive hover:bg-destructive/90 text-white p-1.5 rounded-full shadow-lg transform scale-75 group-hover:scale-100 transition-transform"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Media Previews */}
-          {(images.length > 0 || video) && (
-            <div className="flex gap-2 p-2 bg-muted/10 rounded-lg overflow-x-auto">
-              {images.map((url, i) => (
-                <div
-                  key={i}
-                  className="relative w-16 h-16 shrink-0 rounded-md overflow-hidden group border bg-background shadow-sm"
-                >
-                  <Image
-                    src={url}
-                    alt="Menu Item"
-                    fill
-                    className="object-cover"
-                    unoptimized
+          {/* Short Video Section */}
+          <div className="space-y-2">
+            <FormLabel className="text-accent font-semibold">
+              Short Video (optional)
+            </FormLabel>
+            {!video ? (
+              <div className="relative border-2 border-dashed border-muted-foreground/20 rounded-xl p-8 bg-muted/5 hover:bg-muted/10 hover:border-primary/50 transition-all group">
+                <div className="flex flex-col items-center justify-center space-y-3">
+                  <div className="p-4 bg-background rounded-full shadow-sm group-hover:scale-110 transition-transform duration-300">
+                    <Video className="w-8 h-8 text-primary" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-primary hover:underline cursor-pointer">
+                      Click to upload a video
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      MP4, MOV up to 50MB
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="video/*"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    onChange={(e) => handleFileUpload(e, "video")}
+                    disabled={uploading}
                   />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setImages(images.filter((_, idx) => idx !== i))
-                    }
-                    className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white transition-opacity"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
                 </div>
-              ))}
-              {video && (
-                <div className="relative w-16 h-16 shrink-0 rounded-md overflow-hidden group border bg-black flex items-center justify-center">
-                  <FileVideo className="text-white/50 w-6 h-6" />
+              </div>
+            ) : (
+              <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-muted/20 bg-black flex items-center justify-center group shadow-md max-w-sm">
+                <FileVideo className="text-primary/40 w-12 h-12" />
+                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileVideo className="w-4 h-4 text-primary" />
+                    <span className="text-xs text-white font-medium truncate">
+                      Recipe Video
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setVideo(null)}
-                    className="absolute inset-0 bg-black/40 hidden group-hover:flex items-center justify-center text-white transition-opacity"
+                    className="bg-destructive/80 hover:bg-destructive text-white p-1 rounded-md transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
         <FormField
