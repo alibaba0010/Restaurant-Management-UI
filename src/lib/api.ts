@@ -17,6 +17,17 @@ export class ApiError extends Error {
   }
 }
 
+export function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (!payload.exp) return true;
+    // Check if expired (with 30s buffer)
+    return Date.now() >= payload.exp * 1000 - 30000;
+  } catch (e) {
+    return true;
+  }
+}
+
 export interface ApiResponse<T = any> {
   data: T;
   message?: string;
@@ -76,6 +87,8 @@ type FetchOptions = RequestInit & {
 
 import { useAuthStore } from "./store";
 
+let refreshPromise: Promise<any> | null = null;
+
 async function fetchClient(endpoint: string, options: FetchOptions = {}) {
   const { userAgent, cookieHeader, headers: customHeaders, ...rest } = options;
   const headers: Record<string, string> = {
@@ -93,7 +106,27 @@ async function fetchClient(endpoint: string, options: FetchOptions = {}) {
 
   // If client-side and no specific token override (via Authorization header already), try to get from store
   if (!isServer && !headers["Authorization"]) {
-    const token = useAuthStore.getState().accessToken;
+    let token = useAuthStore.getState().accessToken;
+
+    // Check if token is expired and refresh if necessary
+    if (token && isTokenExpired(token)) {
+      try {
+        if (!refreshPromise) {
+          refreshPromise = refreshSession().finally(() => {
+            refreshPromise = null;
+          });
+        }
+        const refresh = await refreshPromise;
+        if (refresh.success && refresh.token) {
+          useAuthStore.getState().setAccessToken(refresh.token);
+          token = refresh.token;
+        }
+      } catch (error) {
+        console.error("Auto-refresh failed", error);
+        // Optionally redirect to login if refresh fails completely
+      }
+    }
+
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -187,14 +220,15 @@ export async function refreshSession(
   const accessTokenCookie = setCookies.find((c) =>
     c.startsWith("access_token=")
   );
-  const token = accessTokenCookie
+  let token = accessTokenCookie
     ? accessTokenCookie.split(";")[0].split("=")[1]
     : null;
 
   try {
     const data = await res.json();
     // Access token is now in the response body!
-    const token = data.access_token || data.data?.access_token || null;
+    const bodyToken = data.access_token || data.data?.access_token || null;
+    if (bodyToken) token = bodyToken;
 
     return {
       success: true,
@@ -320,6 +354,40 @@ export async function uploadMenuMedia(file: File) {
 export async function createMenu(data: any) {
   return fetchClient("/menus", {
     method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getMenus(params: {
+  page?: number;
+  page_size?: number;
+  q?: string;
+  restaurant_id?: string;
+  min_price?: number;
+  max_price?: number;
+  is_available?: boolean;
+  sort_by?: string;
+  order?: "asc" | "desc";
+}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined) query.append(key, value.toString());
+  });
+
+  return fetchClient(`/menus?${query.toString()}`, {
+    cache: "no-store",
+  });
+}
+
+export async function getMenuById(id: string) {
+  return fetchClient(`/menus/${id}`, {
+    cache: "no-store",
+  });
+}
+
+export async function updateMenu(id: string, data: any) {
+  return fetchClient(`/menus/${id}`, {
+    method: "PATCH",
     body: JSON.stringify(data),
   });
 }

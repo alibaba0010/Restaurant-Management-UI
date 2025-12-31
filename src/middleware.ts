@@ -1,19 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { refreshSession } from "./lib/api";
+import { isTokenExpired, refreshSession } from "./lib/api";
 import { useAuthStore } from "./lib/store";
-
-// Helper to check if token is expired
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    if (!payload.exp) return true;
-    // Check if expired (with 10s buffer)
-    return Date.now() >= payload.exp * 1000 - 10000;
-  } catch (e) {
-    return true;
-  }
-}
 
 export async function middleware(request: NextRequest) {
   const access_token = request.cookies.get("access_token")?.value;

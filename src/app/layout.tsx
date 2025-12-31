@@ -30,6 +30,8 @@ export default async function RootLayout({
   const cookieHeader = headersList.get("cookie") || "";
   let user = null;
 
+  let effectiveAccessToken = finalAccessToken;
+
   // 1. Try to get user with existing access token
   if (finalAccessToken) {
     try {
@@ -52,6 +54,7 @@ export default async function RootLayout({
     try {
       const refresh = await refreshSession(cookieHeader, userAgent);
       if (refresh.success && refresh.token) {
+        effectiveAccessToken = refresh.token;
         // 3. Retry fetching user with the NEW access token
         const response = await getCurrentUser(
           refresh.token,
@@ -102,7 +105,9 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider user={user}>{children}</AuthProvider>
+        <AuthProvider user={user} accessToken={effectiveAccessToken}>
+          {children}
+        </AuthProvider>
         <Toaster />
       </body>
     </html>

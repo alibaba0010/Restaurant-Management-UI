@@ -37,6 +37,12 @@ const nextConfig: NextConfig = {
         port: "",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "restaurant-mgt.s3.us-east-1.amazonaws.com",
+        port: "",
+        pathname: "/**",
+      },
     ],
   },
 };

@@ -54,7 +54,7 @@ export default function Home() {
                 and share delicious recipes with a passionate community. Your
                 next favorite meal is just a click away.
               </p>
-              <div className="flex space-x-4">
+              <div className="flex flex-wrap gap-4">
                 {isAuthenticated ? (
                   <Button asChild size="lg">
                     <Link href="/dashboard">Go to Dashboard</Link>
@@ -69,6 +69,9 @@ export default function Home() {
                     </Button>
                   </>
                 )}
+                <Button asChild variant="secondary" size="lg">
+                  <Link href="/menus">Explore Menus</Link>
+                </Button>
               </div>
             </div>
             <div className="relative h-80 lg:h-full rounded-lg overflow-hidden shadow-2xl">

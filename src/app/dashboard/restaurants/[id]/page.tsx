@@ -6,6 +6,7 @@ import { Plus, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { getRestaurantById } from "@/lib/api";
 import { MenuForm } from "@/components/restaurants/menu-form";
+import { MenuList } from "@/components/restaurants/menu-list";
 import { BackButton } from "@/components/ui/back-button";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
@@ -19,17 +20,20 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 import { useAuthStore } from "@/lib/store";
-import { UserRole } from "@/lib/types";
 
 export default function RestaurantDetailsPage() {
   const params = useParams();
   const id = params.id as string;
   const [restaurant, setRestaurant] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { user: currentUser } = useAuthStore();
 
+  const handleMenuSuccess = () => {
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
   useEffect(() => {
-    // ... (existing fetch logic)
     if (!id) return;
     getRestaurantById(id)
       .then((res) => {
@@ -67,10 +71,10 @@ export default function RestaurantDetailsPage() {
 
         <Separator className="my-8" />
 
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="md:col-span-1">
+        <div className="grid lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-4">
             {canEdit && (
-              <Card className="border-l-4 border-l-primary shadow-md">
+              <Card className="border-l-4 border-l-primary shadow-md sticky top-8">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Plus className="w-5 h-5 text-primary" /> Add Menu Item
@@ -80,12 +84,12 @@ export default function RestaurantDetailsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <MenuForm restaurantId={id} />
+                  <MenuForm restaurantId={id} onSuccess={handleMenuSuccess} />
                 </CardContent>
               </Card>
             )}
             {!canEdit && (
-              <Card className="bg-muted/30">
+              <Card className="bg-muted/30 sticky top-8">
                 <CardHeader>
                   <CardTitle>Restaurant Info</CardTitle>
                 </CardHeader>
@@ -98,11 +102,9 @@ export default function RestaurantDetailsPage() {
             )}
           </div>
 
-          <div className="md:col-span-2">
+          <div className="lg:col-span-8">
             <h2 className="text-2xl font-headline mb-4">Current Menu</h2>
-            <div className="bg-muted/20 p-8 rounded-lg text-center text-muted-foreground border border-dashed">
-              Menu items list would go here.
-            </div>
+            <MenuList restaurantId={id} refreshTrigger={refreshTrigger} />
           </div>
         </div>
       </main>

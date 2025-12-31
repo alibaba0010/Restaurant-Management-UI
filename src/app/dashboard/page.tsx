@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { Upload, Plus, Store, Users } from "lucide-react";
+import { Upload, Plus, Store, Users, Utensils } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRestaurantStore, useAuthStore } from "../../lib/store";
@@ -76,7 +76,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* User Management Card - Admin Only */}
           {isAdmin && (
             <Card className="hover:shadow-lg transition-shadow border-primary/20">
               <CardHeader>
@@ -102,62 +101,86 @@ export default function DashboardPage() {
           )}
 
           {!isUser && (
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 font-headline text-accent">
-                  <Store className="h-5 w-5 text-primary" />
-                  Restaurants Management
-                </CardTitle>
-                <CardDescription>
-                  View and manage your restaurant listings.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isManagement && (
-                  <div className="flex flex-col gap-2">
-                    <div className="text-sm text-muted-foreground mb-2">
-                      {loading
-                        ? "Loading..."
-                        : `You have ${restaurantCount} restaurants listed.`}
+            <>
+              <Card className="hover:shadow-lg transition-shadow border-primary/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-headline text-accent">
+                    <Store className="h-5 w-5 text-primary" />
+                    Restaurants Management
+                  </CardTitle>
+                  <CardDescription>
+                    View and manage your restaurant listings.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isManagement && (
+                    <div className="flex flex-col gap-2">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {loading
+                          ? "Loading..."
+                          : `You have ${restaurantCount} restaurants listed.`}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          asChild
+                          variant="default"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          <Link href="/dashboard/restaurants">View All</Link>
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          <Link href="/dashboard/restaurants/new">
+                            <Plus className="mr-2 h-4 w-4" /> Add
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        asChild
-                        variant="default"
-                        size="sm"
-                        className="flex-1"
-                      >
-                        <Link href="/dashboard/restaurants">View All</Link>
-                      </Button>
-                      <Button
-                        asChild
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                      >
-                        <Link href="/dashboard/restaurants/new">
-                          <Plus className="mr-2 h-4 w-4" /> Add
+                  )}
+                  {isAdmin && (
+                    <div className="flex flex-col gap-2">
+                      <div className="text-sm text-muted-foreground mb-2">
+                        {loading
+                          ? "Loading..."
+                          : `Total Restaurant: ${restaurantCount}`}
+                      </div>
+                      <Button asChild>
+                        <Link href="/dashboard/restaurants">
+                          Manage Restaurants
                         </Link>
                       </Button>
                     </div>
-                  </div>
-                )}
-                {isAdmin && (
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow border-primary/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 font-headline text-accent">
+                    <Utensils className="h-5 w-5 text-primary" />
+                    Menus Management
+                  </CardTitle>
+                  <CardDescription>
+                    Manage your dishes and menu offerings.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                   <div className="flex flex-col gap-2">
                     <div className="text-sm text-muted-foreground mb-2">
-                      {loading
-                        ? "Loading..."
-                        : `Total Restaurant: ${restaurantCount}`}
+                      View all available items across restaurants.
                     </div>
-                    <Button asChild>
-                      <Link href="/dashboard/restaurants">
-                        Manage Restaurants
-                      </Link>
+                    <Button asChild variant="secondary">
+                      <Link href="/menus">View All Menus</Link>
                     </Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
 
