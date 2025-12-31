@@ -341,14 +341,48 @@ export async function apiResetPassword(data: any, userAgent?: string) {
   });
 }
 
-export async function uploadMenuMedia(file: File) {
-  const formData = new FormData();
-  formData.append("file", file);
+export async function getMenuUploadURL(filename: string, contentType: string) {
+  return fetchClient(
+    `/menus/upload-url?filename=${encodeURIComponent(
+      filename
+    )}&content_type=${encodeURIComponent(contentType)}`
+  );
+}
 
-  return fetchClient("/menus/upload", {
-    method: "POST",
-    body: formData,
-  });
+export async function uploadMenuMedia(file: File) {
+  // Strategy: Use presigned URL for direct S3 upload to reduce latency
+  try {
+    const { data } = await getMenuUploadURL(file.name, file.type);
+    const { upload_url, public_url } = data;
+
+    const response = await fetch(upload_url, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": file.type,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to upload to S3");
+    }
+
+    return { data: { url: public_url } };
+  } catch (error) {
+    console.error(
+      "Presigned upload failed, falling back to server upload",
+      error
+    );
+
+    // Fallback to server-side upload if presigned fails (e.g. CORS or auth)
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return fetchClient("/menus/upload", {
+      method: "POST",
+      body: formData,
+    });
+  }
 }
 
 export async function createMenu(data: any) {
