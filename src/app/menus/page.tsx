@@ -76,7 +76,7 @@ export default function MenusPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
-        <BackButton label="Home" href="/" />
+        <BackButton label="Go Back Home" href="/" />
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
           <div className="space-y-1">
             <h1 className="text-2xl font-headline font-bold text-accent">
