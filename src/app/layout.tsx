@@ -48,28 +48,6 @@ export default async function RootLayout({
     }
   }
 
-  // 2. If no user (missing or expired access token) AND we have a refresh token, try to refresh
-  // This serves as a secondary check if middleware didn't catch it
-  if (!user && refresh_token) {
-    try {
-      const refresh = await refreshSession(cookieHeader, userAgent);
-      if (refresh.success && refresh.token) {
-        effectiveAccessToken = refresh.token;
-        // 3. Retry fetching user with the NEW access token
-        const response = await getCurrentUser(
-          refresh.token,
-          userAgent,
-          cookieHeader
-        );
-        user = response.data;
-      }
-    } catch (e) {
-      console.error("Session refresh failed:", e);
-    }
-  }
-
-  // 3. Reroute to "/" if no user found and not already on a public page
-  // We use the 'x-url' header set in middleware to check the current path
   const url = headersList.get("x-url");
   let pathname = "";
   try {

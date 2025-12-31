@@ -3,7 +3,7 @@ import { UserRole } from "./types";
 const isServer = typeof window === "undefined";
 export const API_BASE_URL = isServer
   ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"
-  : "/api/v1";
+  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"; // Use direct URL in dev to avoid proxy timeouts
 
 export class ApiError extends Error {
   constructor(
@@ -341,6 +341,38 @@ export async function apiResetPassword(data: any, userAgent?: string) {
   });
 }
 
+// Helper for XHR uploads with progress tracking
+function uploadToPresignedURL(
+  url: string,
+  body: Blob | File,
+  contentType: string,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url);
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(event.loaded / event.total); // Return 0-1 ratio for flexibility
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const etag = xhr.getResponseHeader("ETag") || "";
+        resolve(etag.replace(/"/g, ""));
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(body);
+  });
+}
+
 export async function getMenuUploadURL(filename: string, contentType: string) {
   return fetchClient(
     `/menus/upload-url?filename=${encodeURIComponent(
@@ -349,28 +381,64 @@ export async function getMenuUploadURL(filename: string, contentType: string) {
   );
 }
 
-export async function uploadMenuMedia(file: File) {
+export async function initiateMultipartUpload(data: {
+  filename: string;
+  content_type: string;
+}) {
+  return fetchClient("/menus/multipart/initiate", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function generatePartPresignedURL(params: {
+  key: string;
+  upload_id: string;
+  part_number: number;
+}) {
+  const query = new URLSearchParams({
+    key: params.key,
+    upload_id: params.upload_id,
+    part_number: params.part_number.toString(),
+  });
+  return fetchClient(`/menus/multipart/part-url?${query.toString()}`);
+}
+
+export async function completeMultipartUpload(data: {
+  key: string;
+  upload_id: string;
+  parts: { part_number: number; etag: string }[];
+}) {
+  return fetchClient("/menus/multipart/complete", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function uploadMenuMedia(
+  file: File,
+  onProgress?: (progress: number) => void
+) {
+  const isVideo = file.type.startsWith("video/");
+  const isLargeFile = file.size > 5 * 1024 * 1024; // 5MB
+
+  if (isVideo || isLargeFile) {
+    return uploadMultipart(file, onProgress);
+  }
+
   // Strategy: Use presigned URL for direct S3 upload to reduce latency
   try {
     const { data } = await getMenuUploadURL(file.name, file.type);
     const { upload_url, public_url } = data;
 
-    const response = await fetch(upload_url, {
-      method: "PUT",
-      body: file,
-      headers: {
-        "Content-Type": file.type,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to upload to S3");
-    }
+    await uploadToPresignedURL(upload_url, file, file.type, (ratio) =>
+      onProgress?.(Math.round(ratio * 100))
+    );
 
     return { data: { url: public_url } };
-  } catch (error) {
+  } catch (error: any) {
     console.error(
-      "Presigned upload failed, falling back to server upload",
+      "Direct S3 upload failed. PLEASE CHECK S3 CORS SETTINGS! (Allow PUT from localhost:3000)",
       error
     );
 
@@ -378,10 +446,83 @@ export async function uploadMenuMedia(file: File) {
     const formData = new FormData();
     formData.append("file", file);
 
+    // Note: Progress for fetch-based server upload is harder without another XHR refactor
+    // but we'll focus on the primary S3 flow.
     return fetchClient("/menus/upload", {
       method: "POST",
       body: formData,
     });
+  }
+}
+
+async function uploadMultipart(
+  file: File,
+  onProgress?: (progress: number) => void
+) {
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+  try {
+    // 1. Initiate
+    const { data: initData } = await initiateMultipartUpload({
+      filename: file.name,
+      content_type: file.type,
+    });
+    const { upload_id, key } = initData;
+
+    const completedParts: { part_number: number; etag: string }[] = [];
+    let uploadedBytes = 0;
+
+    // 2. Upload chunks
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      const partNumber = i + 1;
+
+      // Get presigned URL for this part
+      const { data: presignedUrl } = await generatePartPresignedURL({
+        key,
+        upload_id,
+        part_number: partNumber,
+      });
+
+      // Upload chunk
+      const etag = await uploadToPresignedURL(
+        presignedUrl,
+        chunk,
+        file.type,
+        (ratio) => {
+          if (onProgress) {
+            const currentChunkLoaded = ratio * chunk.size;
+            const totalProgress = Math.round(
+              ((uploadedBytes + currentChunkLoaded) / file.size) * 100
+            );
+            onProgress(totalProgress);
+          }
+        }
+      );
+
+      completedParts.push({ part_number: partNumber, etag });
+      uploadedBytes += chunk.size;
+
+      // Ensure specific progress point is hit after chunk completion
+      if (onProgress) {
+        onProgress(Math.round((uploadedBytes / file.size) * 100));
+      }
+    }
+
+    // 3. Complete
+    const { data: completeData } = await completeMultipartUpload({
+      key,
+      upload_id,
+      parts: completedParts,
+    });
+
+    return { data: { url: completeData.url } };
+  } catch (error) {
+    console.error("Multipart upload failed", error);
+    throw error;
   }
 }
 

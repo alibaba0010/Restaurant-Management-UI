@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  experimental: {
+    middlewareClientMaxBodySize: "50mb",
+  },
   async rewrites() {
     return [
       {
@@ -40,6 +43,12 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "restaurant-mgt.s3.us-east-1.amazonaws.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "d2fuoa5tok37ip.cloudfront.net",
         port: "",
         pathname: "/**",
       },

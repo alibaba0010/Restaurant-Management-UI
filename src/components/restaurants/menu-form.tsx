@@ -59,7 +59,10 @@ interface MenuFormProps {
 export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
   const [images, setImages] = useState<string[]>([]);
   const [video, setVideo] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingType, setUploadingType] = useState<"image" | "video" | null>(
+    null
+  );
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const { toast } = useToast();
 
@@ -97,9 +100,12 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
   };
 
   const processFileUpload = async (file: File, type: "image" | "video") => {
-    setUploading(true);
+    setUploadingType(type);
+    setUploadProgress(0);
     try {
-      const res = await uploadMenuMedia(file);
+      const res = await uploadMenuMedia(file, (progress) => {
+        setUploadProgress(progress);
+      });
       const url = res.data?.url || (res.data as any)?.data?.url;
 
       if (url) {
@@ -114,7 +120,8 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
       console.error(error);
       toast({ title: "Upload failed", variant: "destructive" });
     } finally {
-      setUploading(false);
+      setUploadingType(null);
+      setUploadProgress(0);
     }
   };
 
@@ -190,7 +197,7 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
                     </span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    PNG, JPG, GIF up to 10MB
+                    PNG, JPG (large files supported)
                   </p>
                 </div>
                 <input
@@ -199,15 +206,26 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
                   accept="image/*"
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   onChange={(e) => handleFileUpload(e, "image")}
-                  disabled={uploading}
+                  disabled={!!uploadingType}
                 />
               </div>
-              {uploading && (
+              {uploadingType === "image" && (
                 <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10 transition-all">
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <div className="flex flex-col items-center gap-3 w-full max-w-[200px] px-4">
+                    <div className="relative flex items-center justify-center">
+                      <Loader2 className="w-12 h-12 animate-spin text-primary opacity-20" />
+                      <span className="absolute text-[10px] font-bold text-primary">
+                        {uploadProgress}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-primary h-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
                     <p className="text-xs font-medium text-primary animate-pulse">
-                      Uploading...
+                      Uploading image...
                     </p>
                   </div>
                 </div>
@@ -261,7 +279,7 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
                       Click to upload a video
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      MP4, MOV up to 50MB
+                      MP4, MKV (large files supported)
                     </p>
                   </div>
                   <input
@@ -269,9 +287,30 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
                     accept="video/*"
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     onChange={(e) => handleFileUpload(e, "video")}
-                    disabled={uploading}
+                    disabled={!!uploadingType}
                   />
                 </div>
+                {uploadingType === "video" && (
+                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10 transition-all">
+                    <div className="flex flex-col items-center gap-3 w-full max-w-[200px] px-4">
+                      <div className="relative flex items-center justify-center">
+                        <Loader2 className="w-12 h-12 animate-spin text-primary opacity-20" />
+                        <span className="absolute text-[10px] font-bold text-primary">
+                          {uploadProgress}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-primary h-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-xs font-medium text-primary animate-pulse">
+                        Uploading video...
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-muted/20 bg-black flex items-center justify-center group shadow-md max-w-sm">
@@ -405,7 +444,7 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
 
         <Button
           type="submit"
-          disabled={form.formState.isSubmitting || uploading}
+          disabled={form.formState.isSubmitting || !!uploadingType}
           className="w-full bg-primary/90 hover:bg-primary text-primary-foreground font-semibold py-6 shadow-lg transition-transform active:scale-[0.98]"
         >
           {form.formState.isSubmitting ? (
@@ -413,7 +452,7 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
           ) : (
             <Plus className="mr-2 h-4 w-4" />
           )}
-          Add to Menu
+          Add Menu
         </Button>
       </form>
     </Form>
