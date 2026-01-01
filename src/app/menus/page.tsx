@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Header from "../../components/layout/header";
 import Footer from "../../components/layout/footer";
@@ -27,6 +28,7 @@ import { Badge } from "../../components/ui/badge";
 import { BackButton } from "../../components/ui/back-button";
 
 export default function MenusPage() {
+  const router = useRouter();
   const [menus, setMenus] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -187,7 +189,8 @@ export default function MenusPage() {
               {menus.map((menu) => (
                 <Card
                   key={menu.id}
-                  className="overflow-hidden group hover:shadow-xl transition-all duration-300 border-none shadow-md"
+                  className="overflow-hidden group hover:shadow-xl transition-all duration-300 border-none shadow-md cursor-pointer"
+                  onClick={() => router.push(`/menus/${menu.id}`)}
                 >
                   <div className="relative h-48 w-full bg-muted">
                     {menu.image_urls && menu.image_urls.length > 0 ? (
@@ -196,6 +199,7 @@ export default function MenusPage() {
                         alt={menu.name}
                         fill
                         className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        unoptimized
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -228,14 +232,15 @@ export default function MenusPage() {
                       )}
                     </div>
                     <Button
-                      asChild
                       className="w-full bg-accent hover:bg-accent/90"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(
+                          `/dashboard/restaurants/${menu.restaurant_id}`
+                        );
+                      }}
                     >
-                      <Link
-                        href={`/dashboard/restaurants/${menu.restaurant_id}`}
-                      >
-                        View Restaurant
-                      </Link>
+                      View Restaurant
                     </Button>
                   </CardContent>
                 </Card>

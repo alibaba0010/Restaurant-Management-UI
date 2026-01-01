@@ -56,3 +56,30 @@ export const hasPermission = (
 
   return hierarchy[userRole] >= hierarchy[requiredRole];
 };
+
+export interface Menu {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  image_urls: string[];
+  video_url?: string;
+  restaurant_id: string;
+  is_available: boolean;
+  prep_time_minutes?: number;
+  calories?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Restaurant {
+  id: string;
+  name: string;
+  description: string;
+  address: string;
+  phone_number: string;
+  user_id: string;
+  status: RestaurantStatus;
+  created_at: string;
+  updated_at: string;
+}

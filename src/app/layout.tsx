@@ -56,17 +56,19 @@ export default async function RootLayout({
     // Handle invalid URLs if any
   }
 
-  const isPublicPath =
-    pathname === "/" ||
-    pathname.startsWith("/signin") ||
-    pathname.startsWith("/signup") ||
-    pathname.startsWith("/verify") ||
-    pathname.startsWith("/forgot-password");
-  // pathname.startsWith("/dashboard") ||
+  // const isPublicPath =
+  //   pathname === "/" ||
+  //   pathname.startsWith("/signin") ||
+  //   pathname.startsWith("/signup") ||
+  //   pathname.startsWith("/verify") ||
+  //   pathname.startsWith("/auth/callback") ||
+  //   pathname.startsWith("/forgot-password") ||
+  //   pathname.startsWith("/reset-password") ||
+  //   pathname.startsWith("/verify-email");
 
-  if (!user && !isPublicPath) {
-    redirect("/");
-  }
+  // if (!user && !isPublicPath) {
+  //   redirect("/");
+  // }
 
   return (
     <html lang="en" suppressHydrationWarning>
