@@ -10,6 +10,7 @@ import { useAuthStore } from "@/lib/store";
 import {
   Loader2,
   ChevronLeft,
+  ChevronRight,
   Clock,
   Flame,
   Play,
@@ -102,6 +103,31 @@ export default function MenuDetailsPage({
 
   const isOwner = user?.role === UserRole.MANAGEMENT && menu.restaurant_id; // Ideally check ownership against restaurant.user_id, but here we just check role for now or need refetch
 
+  const allMedia = menu
+    ? [
+        ...(menu.video_url ? [{ type: "video", url: menu.video_url }] : []),
+        ...menu.image_urls.map((url) => ({ type: "image", url })),
+      ]
+    : [];
+
+  const currentIndex = allMedia.findIndex((m) => m.url === selectedMedia);
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (allMedia.length <= 1) return;
+    const nextIndex = (currentIndex + 1) % allMedia.length;
+    const next = allMedia[nextIndex];
+    handleMediaClick(next.url, next.type === "video");
+  };
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (allMedia.length <= 1) return;
+    const prevIndex = (currentIndex - 1 + allMedia.length) % allMedia.length;
+    const prev = allMedia[prevIndex];
+    handleMediaClick(prev.url, prev.type === "video");
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
@@ -116,7 +142,11 @@ export default function MenuDetailsPage({
             Back
           </Button>
           {isOwner && (
-            <Button variant="outline" className="gap-2">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => router.push(`/menus/${id}/edit`)}
+            >
               <Edit className="w-4 h-4" />
               Edit Menu
             </Button>
@@ -136,24 +166,42 @@ export default function MenuDetailsPage({
               onClick={openLightbox}
             >
               {selectedMedia ? (
-                isVideo ? (
-                  <video
-                    src={selectedMedia}
-                    controls
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    muted
-                    loop
-                  />
-                ) : (
-                  <Image
-                    src={selectedMedia}
-                    alt={menu.name}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-105"
-                    unoptimized
-                  />
-                )
+                <>
+                  {isVideo ? (
+                    <video
+                      src={selectedMedia}
+                      controls
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      muted
+                      loop
+                    />
+                  ) : (
+                    <Image
+                      src={selectedMedia}
+                      alt={menu.name}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      unoptimized
+                    />
+                  )}
+                  {allMedia.length > 1 && (
+                    <>
+                      <button
+                        onClick={handlePrev}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
+                      >
+                        <ChevronLeft className="w-6 h-6" />
+                      </button>
+                      <button
+                        onClick={handleNext}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
+                      >
+                        <ChevronRight className="w-6 h-6" />
+                      </button>
+                    </>
+                  )}
+                </>
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   No media available

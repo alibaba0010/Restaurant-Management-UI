@@ -15,7 +15,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { createMenu, uploadMenuMedia } from "@/lib/api";
+import { createMenu, uploadMenuMedia, updateMenu } from "@/lib/api";
+import { Menu } from "@/lib/types";
 import {
   Loader2,
   UploadCloud,
@@ -53,12 +54,19 @@ const menuSchema = z.object({
 
 interface MenuFormProps {
   restaurantId: string;
+  initialData?: Menu;
   onSuccess?: () => void;
 }
 
-export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
-  const [images, setImages] = useState<string[]>([]);
-  const [video, setVideo] = useState<string | null>(null);
+export function MenuForm({
+  restaurantId,
+  initialData,
+  onSuccess,
+}: MenuFormProps) {
+  const [images, setImages] = useState<string[]>(initialData?.image_urls || []);
+  const [video, setVideo] = useState<string | null>(
+    initialData?.video_url || null
+  );
   const [uploadingType, setUploadingType] = useState<"image" | "video" | null>(
     null
   );
@@ -69,11 +77,13 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
   const form = useForm<z.infer<typeof menuSchema>>({
     resolver: zodResolver(menuSchema),
     defaultValues: {
-      name: "",
-      description: "",
-      price: "",
-      prep_time_minutes: "",
-      calories: "",
+      name: initialData?.name || "",
+      description: initialData?.description || "",
+      price: initialData?.price ? initialData.price.toString() : "",
+      prep_time_minutes: initialData?.prep_time_minutes
+        ? initialData.prep_time_minutes.toString()
+        : "",
+      calories: initialData?.calories ? initialData.calories.toString() : "",
     },
   });
 
@@ -140,7 +150,7 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
 
   const onSubmit = async (values: z.infer<typeof menuSchema>) => {
     try {
-      await createMenu({
+      const payload = {
         ...values,
         price: Number(values.price),
         prep_time_minutes: values.prep_time_minutes
@@ -151,14 +161,37 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
         image_urls: images,
         video_url: video || "",
         is_available: true,
-      });
-      toast({ title: "Menu item created successfully" });
-      form.reset();
-      setImages([]);
-      setVideo(null);
+      };
+
+      if (initialData) {
+        await updateMenu(initialData.id, payload);
+        toast({ title: "Menu item updated successfully" });
+      } else {
+        await createMenu(payload);
+        toast({ title: "Menu item created successfully" });
+      }
+
+      // Only reset if creating new, or explicitly desired.
+      // Usually keep form filled on update or close modal?
+      // Since this behaves likely in a modal or separate page, onSuccess usually closes it.
+      // If standalone page, maybe redirect?
+      // If I am editing, I might not want to clear the form unless I close the edit view.
+      // But typically `onSuccess` handles navigation.
+
+      if (!initialData) {
+        form.reset();
+        setImages([]);
+        setVideo(null);
+      }
+
       if (onSuccess) onSuccess();
     } catch (error) {
-      toast({ title: "Failed to create menu item", variant: "destructive" });
+      toast({
+        title: initialData
+          ? "Failed to update menu item"
+          : "Failed to create menu item",
+        variant: "destructive",
+      });
     }
   };
 
@@ -452,7 +485,7 @@ export function MenuForm({ restaurantId, onSuccess }: MenuFormProps) {
           ) : (
             <Plus className="mr-2 h-4 w-4" />
           )}
-          Add Menu
+          {initialData ? "Update Menu" : "Add Menu"}
         </Button>
       </form>
     </Form>
