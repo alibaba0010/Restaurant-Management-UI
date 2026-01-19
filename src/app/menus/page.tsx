@@ -31,21 +31,27 @@ export default function MenusPage() {
   const router = useRouter();
   const [menus, setMenus] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("name");
   const [order, setOrder] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function fetchMenus() {
-    setLoading(true);
+  async function fetchMenus(isLoadMore = false) {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
     try {
+      const cursorToUse = isLoadMore ? nextCursor : undefined;
       const res = await getMenus({
-        page,
+        cursor: cursorToUse,
         page_size: 12,
         q: searchTerm,
         is_available: true,
@@ -54,24 +60,36 @@ export default function MenusPage() {
         sort_by: sortBy,
         order: order,
       });
-      setMenus(res.data || []);
-      setTotalPages(res.meta?.total_pages || 1);
+
+      if (isLoadMore) {
+        setMenus((prev) => [...prev, ...res.data]);
+      } else {
+        setMenus(res.data || []);
+      }
+
+      setNextCursor(res.meta?.next_cursor);
+      setHasMore(!!res.meta?.has_more);
     } catch (err) {
       console.error("Failed to fetch menus", err);
       setError("We encountered an issue loading the menus. Please try again.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }
 
   useEffect(() => {
-    fetchMenus();
-  }, [page, sortBy, order]);
+    fetchMenus(false);
+  }, [sortBy, order]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1);
-    fetchMenus();
+    fetchMenus(false);
+  };
+
+  const loadMore = () => {
+    if (!nextCursor || loadingMore) return;
+    fetchMenus(true);
   };
 
   return (
@@ -154,8 +172,7 @@ export default function MenusPage() {
                   onClick={() => {
                     setMinPrice("");
                     setMaxPrice("");
-                    setPage(1);
-                    fetchMenus();
+                    fetchMenus(false);
                   }}
                 >
                   Reset Filters
@@ -236,7 +253,7 @@ export default function MenusPage() {
                       onClick={(e) => {
                         e.stopPropagation();
                         router.push(
-                          `/dashboard/restaurants/${menu.restaurant_id}`
+                          `/dashboard/restaurants/${menu.restaurant_id}`,
                         );
                       }}
                     >
@@ -247,24 +264,15 @@ export default function MenusPage() {
               ))}
             </div>
 
-            {totalPages > 1 && (
+            {hasMore && (
               <div className="mt-12 flex justify-center gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  className="min-w-[150px]"
                 >
-                  Previous
-                </Button>
-                <div className="flex items-center px-4 font-medium">
-                  Page {page} of {totalPages}
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
+                  {loadingMore ? "Loading..." : "Load More"}
                 </Button>
               </div>
             )}
@@ -281,8 +289,7 @@ export default function MenusPage() {
             <Button
               onClick={() => {
                 setSearchTerm("");
-                setPage(1);
-                fetchMenus();
+                fetchMenus(false);
               }}
             >
               Clear Filters

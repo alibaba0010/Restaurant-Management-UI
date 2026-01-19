@@ -23,27 +23,58 @@ export default function RestaurantsListPage() {
   const { restaurants, setRestaurants } = useRestaurantStore();
   const { user: currentUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(false);
 
   const isManagement = currentUser?.role === UserRole.MANAGEMENT;
 
+  // Initial fetch
   useEffect(() => {
-    async function fetchData() {
+    async function fetchInitialData() {
+      setLoading(true);
       try {
-        const res = await getRestaurants();
+        setNextCursor(undefined); // Reset cursor
+        const res = await getRestaurants(undefined, 20, searchTerm);
         setRestaurants(res.data || []);
+        setNextCursor(res.meta?.next_cursor);
+        setHasMore(!!res.meta?.has_more);
       } catch (err) {
         console.error("Failed to fetch restaurants", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchData();
-  }, [setRestaurants]);
 
-  const filteredRestaurants = restaurants.filter((r) =>
-    r.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    // Debounce search if needed, but for now just fetch on mount or searchTerm change
+    const timer = setTimeout(() => {
+      fetchInitialData();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [setRestaurants, searchTerm]); // Add searchTerm to dependency
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await getRestaurants(nextCursor, 20, searchTerm);
+      const newRestaurants = res.data || [];
+      setRestaurants([...restaurants, ...newRestaurants]);
+      setNextCursor(res.meta?.next_cursor);
+      setHasMore(!!res.meta?.has_more);
+    } catch (err) {
+      console.error("Failed to load more restaurants", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // We don't filter client-side anymore effectively, but for safety or mixed usage:
+  // actually we are filtering server side with `searchTerm` in `getRestaurants`.
+  // So client side filtering is redundant if searchTerm is passed to API.
+  const displayedRestaurants = restaurants;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -77,7 +108,6 @@ export default function RestaurantsListPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          {/* Add more filters if needed */}
         </div>
 
         {loading ? (
@@ -86,45 +116,60 @@ export default function RestaurantsListPage() {
               <div key={i} className="h-48 bg-muted animate-pulse rounded-xl" />
             ))}
           </div>
-        ) : filteredRestaurants.length > 0 ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredRestaurants.map((r) => (
-              <Link href={`/dashboard/restaurants/${r.id}`} key={r.id}>
-                <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group h-full border-muted/60 bg-gradient-to-br from-card to-secondary/5">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">
-                        {r.name}
-                      </CardTitle>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          r.status === RestaurantStatus.ACTIVE
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-700"
-                        } capitalize`}
-                      >
-                        {r.status}
-                      </span>
-                    </div>
-                    <CardDescription className="line-clamp-1">
-                      {r.address}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {r.description}
-                    </p>
-                    <div className="mt-4 pt-4 border-t border-dashed flex justify-between items-center text-xs text-muted-foreground">
-                      <span>Capacity: {r.capacity}</span>
-                      <span>
-                        {r.delivery_available ? "Delivery" : "Dine-in"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
+        ) : displayedRestaurants.length > 0 ? (
+          <>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+              {displayedRestaurants.map((r) => (
+                <Link href={`/dashboard/restaurants/${r.id}`} key={r.id}>
+                  <Card className="hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group h-full border-muted/60 bg-gradient-to-br from-card to-secondary/5">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <CardTitle className="text-xl font-bold group-hover:text-primary transition-colors">
+                          {r.name}
+                        </CardTitle>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            r.status === RestaurantStatus.ACTIVE
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-700"
+                          } capitalize`}
+                        >
+                          {r.status}
+                        </span>
+                      </div>
+                      <CardDescription className="line-clamp-1">
+                        {r.address}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {r.description}
+                      </p>
+                      <div className="mt-4 pt-4 border-t border-dashed flex justify-between items-center text-xs text-muted-foreground">
+                        <span>Capacity: {r.capacity}</span>
+                        <span>
+                          {r.delivery_available ? "Delivery" : "Dine-in"}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+
+            {hasMore && (
+              <div className="flex justify-center py-4">
+                <Button
+                  onClick={loadMore}
+                  disabled={loadingMore}
+                  variant="outline"
+                  className="min-w-[150px]"
+                >
+                  {loadingMore ? "Loading..." : "Load More"}
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center py-12">
             <p className="text-muted-foreground text-lg">

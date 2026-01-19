@@ -10,7 +10,7 @@ export class ApiError extends Error {
     public message: string,
     public status: number,
     public title?: string,
-    public data?: any
+    public data?: any,
   ) {
     super(message);
     this.name = "ApiError";
@@ -37,6 +37,8 @@ export interface ApiResponse<T = any> {
     page?: number;
     page_size?: number;
     total_pages?: number;
+    next_cursor?: string;
+    has_more?: boolean;
   };
 }
 
@@ -174,7 +176,7 @@ export async function verifyUser(token: string, userAgent?: string) {
 export async function getCurrentUser(
   token?: string,
   userAgent?: string,
-  cookieHeader?: string
+  cookieHeader?: string,
 ) {
   const headers: Record<string, string> = {};
   if (token) {
@@ -190,7 +192,7 @@ export async function getCurrentUser(
 
 export async function apiRefreshToken(
   cookieHeader?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -207,7 +209,7 @@ export async function apiRefreshToken(
 
 export async function refreshSession(
   cookieHeader?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   const res = await apiRefreshToken(cookieHeader, userAgent);
 
@@ -218,7 +220,7 @@ export async function refreshSession(
   // Extract token from Set-Cookie header
   const setCookies = res.headers.getSetCookie();
   const accessTokenCookie = setCookies.find((c) =>
-    c.startsWith("access_token=")
+    c.startsWith("access_token="),
   );
   let token = accessTokenCookie
     ? accessTokenCookie.split(";")[0].split("=")[1]
@@ -253,13 +255,13 @@ export async function getAllUsers(
   query = "",
   role: UserRole | string = "",
   sortBy = "created_at",
-  order = "desc"
+  order = "desc",
 ) {
   return fetchClient(
     `/user/users?page=${page}&page_size=${pageSize}&q=${query}&role=${role}&sort_by=${sortBy}&order=${order}`,
     {
       cache: "no-store",
-    }
+    },
   );
 }
 
@@ -271,7 +273,7 @@ export async function getUserById(id: string) {
 
 export async function adminUpdateUser(
   id: string,
-  data: { role?: string; status?: string }
+  data: { role?: string; status?: string },
 ) {
   return fetchClient(`/user/${id}/role`, {
     method: "PATCH",
@@ -300,13 +302,20 @@ export async function createRestaurant(data: any, token?: string) {
   });
 }
 
-export async function getRestaurants(page = 1, pageSize = 20, query = "") {
-  return fetchClient(
-    `/restaurants?page=${page}&page_size=${pageSize}&q=${query}`,
-    {
-      cache: "no-store",
-    }
-  );
+export async function getRestaurants(
+  cursor?: string,
+  pageSize = 20,
+  query = "",
+) {
+  const queryParams = new URLSearchParams({
+    page_size: pageSize.toString(),
+    q: query,
+  });
+  if (cursor) queryParams.append("cursor", cursor);
+
+  return fetchClient(`/restaurants?${queryParams.toString()}`, {
+    cache: "no-store",
+  });
 }
 
 export async function getRestaurantById(id: string) {
@@ -324,7 +333,7 @@ export async function updateRestaurant(id: string, data: any) {
 
 export async function apiForgotPassword(
   data: { email: string },
-  userAgent?: string
+  userAgent?: string,
 ) {
   return fetchClient("/auth/forgot-password", {
     method: "POST",
@@ -346,29 +355,38 @@ function uploadToPresignedURL(
   url: string,
   body: Blob | File,
   contentType: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    console.log(`[UploadDebug] Starting XHR upload to: ${url}`);
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
     xhr.setRequestHeader("Content-Type", contentType);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && onProgress) {
-        onProgress(event.loaded / event.total); // Return 0-1 ratio for flexibility
+        const percent = event.loaded / event.total;
+        console.log(`[UploadDebug] Progress: ${Math.round(percent * 100)}%`);
+        onProgress(percent); // Return 0-1 ratio for flexibility
       }
     };
 
     xhr.onload = () => {
+      console.log(`[UploadDebug] XHR Load Status: ${xhr.status}`);
       if (xhr.status >= 200 && xhr.status < 300) {
         const etag = xhr.getResponseHeader("ETag") || "";
+        console.log(`[UploadDebug] Upload success. ETag: ${etag}`);
         resolve(etag.replace(/"/g, ""));
       } else {
+        console.error(`[UploadDebug] Upload failed with status ${xhr.status}`);
         reject(new Error(`Upload failed with status ${xhr.status}`));
       }
     };
 
-    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.onerror = () => {
+      console.error("[UploadDebug] Network error during upload");
+      reject(new Error("Network error during upload"));
+    };
     xhr.send(body);
   });
 }
@@ -376,12 +394,12 @@ function uploadToPresignedURL(
 export async function getMenuUploadURL(filename: string, contentType: string) {
   return fetchClient(
     `/menus/upload-url?filename=${encodeURIComponent(
-      filename
-    )}&content_type=${encodeURIComponent(contentType)}`
+      filename,
+    )}&content_type=${encodeURIComponent(contentType)}`,
   );
 }
 
-export async function initiateMultipartUpload(data: {
+async function initiateMultipartUpload(data: {
   filename: string;
   content_type: string;
 }) {
@@ -417,32 +435,42 @@ export async function completeMultipartUpload(data: {
 
 export async function uploadMenuMedia(
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ) {
+  console.log(
+    `[UploadDebug] uploadMenuMedia called for file: ${file.name}, type: ${file.type}, size: ${file.size}`,
+  );
   const isVideo = file.type.startsWith("video/");
   const isLargeFile = file.size > 5 * 1024 * 1024; // 5MB
 
   if (isVideo || isLargeFile) {
+    console.log("[UploadDebug] Using Multipart Upload Strategy");
     return uploadMultipart(file, onProgress);
   }
 
   // Strategy: Use presigned URL for direct S3 upload to reduce latency
   try {
+    console.log("[UploadDebug] Using Direct Presigned URL Strategy");
     const { data } = await getMenuUploadURL(file.name, file.type);
     const { upload_url, public_url } = data;
+    console.log(`[UploadDebug] Got upload URL: ${upload_url}`);
 
     await uploadToPresignedURL(upload_url, file, file.type, (ratio) =>
-      onProgress?.(Math.round(ratio * 100))
+      onProgress?.(Math.round(ratio * 100)),
     );
 
+    console.log(
+      `[UploadDebug] Direct upload complete. Public URL: ${public_url}`,
+    );
     return { data: { url: public_url } };
   } catch (error: any) {
     console.error(
       "Direct S3 upload failed. PLEASE CHECK S3 CORS SETTINGS! (Allow PUT from localhost:3000)",
-      error
+      error,
     );
 
     // Fallback to server-side upload if presigned fails (e.g. CORS or auth)
+    console.log("[UploadDebug] Falling back to server-side upload");
     const formData = new FormData();
     formData.append("file", file);
 
@@ -454,21 +482,27 @@ export async function uploadMenuMedia(
     });
   }
 }
-
+// Uploads a file using the multipart upload API
 async function uploadMultipart(
   file: File,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ) {
+  console.log(`[UploadDebug] Starting Multipart Upload for ${file.name}`);
   const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  console.log(`[UploadDebug] Total chunks: ${totalChunks}`);
 
   try {
     // 1. Initiate
+    console.log("[UploadDebug] Initiating multipart upload...");
     const { data: initData } = await initiateMultipartUpload({
       filename: file.name,
       content_type: file.type,
     });
     const { upload_id, key } = initData;
+    console.log(
+      `[UploadDebug] Upload initiated. ID: ${upload_id}, Key: ${key}`,
+    );
 
     const completedParts: { part_number: number; etag: string }[] = [];
     let uploadedBytes = 0;
@@ -479,6 +513,10 @@ async function uploadMultipart(
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       const partNumber = i + 1;
+
+      console.log(
+        `[UploadDebug] Processing chunk ${partNumber}/${totalChunks}`,
+      );
 
       // Get presigned URL for this part
       const { data: presignedUrl } = await generatePartPresignedURL({
@@ -496,13 +534,14 @@ async function uploadMultipart(
           if (onProgress) {
             const currentChunkLoaded = ratio * chunk.size;
             const totalProgress = Math.round(
-              ((uploadedBytes + currentChunkLoaded) / file.size) * 100
+              ((uploadedBytes + currentChunkLoaded) / file.size) * 100,
             );
             onProgress(totalProgress);
           }
-        }
+        },
       );
 
+      console.log(`[UploadDebug] Chunk ${partNumber} uploaded. ETag: ${etag}`);
       completedParts.push({ part_number: partNumber, etag });
       uploadedBytes += chunk.size;
 
@@ -513,15 +552,19 @@ async function uploadMultipart(
     }
 
     // 3. Complete
+    console.log("[UploadDebug] Completing multipart upload...");
     const { data: completeData } = await completeMultipartUpload({
       key,
       upload_id,
       parts: completedParts,
     });
+    console.log(
+      `[UploadDebug] Multipart upload complete. URL: ${completeData.url}`,
+    );
 
     return { data: { url: completeData.url } };
   } catch (error) {
-    console.error("Multipart upload failed", error);
+    console.error("[UploadDebug] Multipart upload failed", error);
     throw error;
   }
 }
@@ -534,7 +577,7 @@ export async function createMenu(data: any) {
 }
 
 export async function getMenus(params: {
-  page?: number;
+  cursor?: string;
   page_size?: number;
   q?: string;
   restaurant_id?: string;
