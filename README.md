@@ -5,8 +5,10 @@ A modern, high-performance web application for managing restaurants and menus, b
 ## 🚀 Features
 
 - **Next.js 15 App Router**: Leveraging the latest React features and server-side optimizations.
-- **Optimized Media Uploads**: Implements AWS S3 Presigned URLs for direct client-to-cloud uploads, bypassing the backend to minimize latency (reducing upload jumps from 2 to 1).
+- **Optimized Media Uploads**: Implements AWS S3 Presigned URLs for direct client-to-cloud uploads, bypassing the backend to minimize latency (reducing upload jumps from 2 to 1). Support for Multipart uploads.
+- **Cursor-Based Pagination**: Efficient, scalable list navigation for restaurants and menus, replacing traditional offset pagination.
 - **Global State Management**: Powered by `Zustand` for seamless authentication and UI state control.
+- **Enhanced Authentication**: Robust flows for Google Sign-in, Password Reset, and Email Verification.
 - **Premium Design System**: Built with `Tailwind CSS`, `Radix UI`, and `Lucide React` for a sleek, responsive, and accessible interface.
 - **Advanced Form Handling**: Integrated `React Hook Form` with `Zod` for robust client-side validation.
 - **Dashboard & Analytics**: Real-time management of restaurants, menu items, and media assets.
