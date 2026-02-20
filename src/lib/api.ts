@@ -618,3 +618,23 @@ export async function updateMenu(id: string, data: any) {
     body: JSON.stringify(data),
   });
 }
+
+export async function createOrder(data: any) {
+  // data should match CreateOrderInput: { restaurant_id, delivery_address, items: [{menu_id, quantity}] }
+  return fetchClient("/orders", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOrders() {
+  return fetchClient("/orders", {
+    cache: "no-store",
+  });
+}
+
+export async function getOrderById(id: string) {
+  return fetchClient(`/orders/${id}`, {
+    cache: "no-store",
+  });
+}

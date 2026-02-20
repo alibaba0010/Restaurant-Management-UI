@@ -7,6 +7,8 @@ import { Menu, UserRole } from "@/lib/types";
 import { getMenuById, getMenus } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store";
+import { useCartStore } from "@/lib/cart-store";
+
 import {
   Loader2,
   ChevronLeft,
@@ -19,6 +21,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import Link from "next/link";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MenuDetailsPage({
   params,
@@ -27,6 +30,8 @@ export default function MenuDetailsPage({
 }) {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { addItem } = useCartStore();
+  const { toast } = useToast();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [relatedMenus, setRelatedMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,7 +65,7 @@ export default function MenuDetailsPage({
           });
           // Filter out current menu
           setRelatedMenus(
-            relatedData.filter((m: Menu) => m.id !== menuData.id)
+            relatedData.filter((m: Menu) => m.id !== menuData.id),
           );
         }
       } catch (error) {
@@ -285,7 +290,19 @@ export default function MenuDetailsPage({
             </div>
 
             <div className="pt-6 border-t">
-              <Button size="lg" className="w-full md:w-auto h-12 text-lg gap-2">
+              <Button
+                size="lg"
+                className="w-full md:w-auto h-12 text-lg gap-2"
+                onClick={() => {
+                  if (menu) {
+                    addItem(menu);
+                    toast({
+                      title: "Added to Cart",
+                      description: `${menu.name} has been added to your order.`,
+                    });
+                  }
+                }}
+              >
                 <ShoppingCart className="w-5 h-5" />
                 Add to Order
               </Button>

@@ -15,6 +15,7 @@ import {
 } from "../ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { LogOut, Settings, User as UserIcon } from "lucide-react";
+import { CartSheet } from "../cart/cart-sheet";
 
 export default function Header() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -52,6 +53,7 @@ export default function Header() {
         </Link>
         <div className="flex flex-1 items-center justify-end space-x-4">
           <nav className="flex items-center space-x-2">
+            <CartSheet />
             <Button variant="ghost" asChild className="hidden md:flex">
               <Link href="/menus">Explore Menus</Link>
             </Button>

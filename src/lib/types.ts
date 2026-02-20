@@ -46,7 +46,7 @@ export interface User {
 // Helper to check if a role has at least the required permission level
 export const hasPermission = (
   userRole: UserRole,
-  requiredRole: UserRole
+  requiredRole: UserRole,
 ): boolean => {
   const hierarchy: Record<UserRole, number> = {
     [UserRole.ADMIN]: 3,
@@ -80,6 +80,34 @@ export interface Restaurant {
   phone_number: string;
   user_id: string;
   status: RestaurantStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export enum OrderStatus {
+  PENDING = "pending",
+  PROCESSING = "processing",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  menu_id: string;
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface Order {
+  id: string;
+  user_id: string;
+  restaurant_id: string;
+  total_amount: number;
+  status: OrderStatus;
+  delivery_address: string;
+  items?: OrderItem[];
   created_at: string;
   updated_at: string;
 }

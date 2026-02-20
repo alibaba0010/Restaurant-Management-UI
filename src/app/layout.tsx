@@ -38,7 +38,7 @@ export default async function RootLayout({
       const response = await getCurrentUser(
         finalAccessToken,
         userAgent,
-        cookieHeader
+        cookieHeader,
       );
       user = response.data;
     } catch (error: any) {
