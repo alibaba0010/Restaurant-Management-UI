@@ -263,7 +263,7 @@ export default function MenuDetailsPage({
                 {menu.name}
               </h1>
               <p className="text-2xl font-semibold text-primary">
-                ${menu.price.toFixed(2)}
+                ${parseFloat(parseFloat(menu.price)).toFixed(2)}
               </p>
             </div>
 
@@ -343,7 +343,7 @@ export default function MenuDetailsPage({
                       {item.name}
                     </h4>
                     <p className="text-sm text-muted-foreground">
-                      ${item.price.toFixed(2)}
+                      ${parseFloat(item.price).toFixed(2)}
                     </p>
                   </div>
                 </Link>

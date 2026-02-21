@@ -1,5 +1,34 @@
 "use client";
 
+// Mirrors the Go MenuResponse DTO (price is a decimal string from shopspring/decimal)
+type Category = {
+  id: string;
+  name: string;
+};
+
+type Menu = {
+  id: string;
+  name: string;
+  description?: string;
+  /** shopspring/decimal serialises to a JSON string, e.g. "12.50" */
+  price: string;
+  image_urls?: string[];
+  video_url?: string;
+  restaurant_id: string;
+  categories?: Category[];
+  tags?: string[];
+  is_available: boolean;
+  prep_time_minutes?: number;
+  calories?: number;
+  stock_quantity: number;
+  is_vegetarian: boolean;
+  is_vegan: boolean;
+  is_gluten_free: boolean;
+  allergens?: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Header from "../../components/layout/header";
@@ -29,7 +58,7 @@ import { BackButton } from "../../components/ui/back-button";
 
 export default function MenusPage() {
   const router = useRouter();
-  const [menus, setMenus] = useState<any[]>([]);
+  const [menus, setMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -224,7 +253,7 @@ export default function MenusPage() {
                       </div>
                     )}
                     <Badge className="absolute top-2 right-2 bg-primary/90 hover:bg-primary">
-                      ${menu.price.toFixed(2)}
+                      ${parseFloat(parseFloat(menu.price)).toFixed(2)}
                     </Badge>
                   </div>
                   <CardHeader className="pb-2">
@@ -241,7 +270,7 @@ export default function MenusPage() {
                         <Clock className="h-4 w-4" />
                         <span>{menu.prep_time_minutes || 15} mins</span>
                       </div>
-                      {menu.calories > 0 && (
+                      {(menu.calories ?? 0) > 0 && (
                         <div className="flex items-center gap-1">
                           <Flame className="h-4 w-4 text-orange-500" />
                           <span>{menu.calories} kcal</span>

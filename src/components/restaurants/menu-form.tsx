@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -15,8 +15,15 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { createMenu, uploadMenuMedia, updateMenu } from "@/lib/api";
-import { Menu } from "@/lib/types";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  createMenu,
+  uploadMenuMedia,
+  updateMenu,
+  getMenuCategories,
+} from "@/lib/api";
+import { Menu, MenuCategory } from "@/lib/types";
 import {
   Loader2,
   UploadCloud,
@@ -31,26 +38,41 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
+import { handleApiError } from "@/lib/utils";
 
 const menuSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  description: z.string().optional(),
+  description: z.string(),
   price: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Price must be a positive number",
   }),
-  prep_time_minutes: z
-    .string()
-    .optional()
-    .refine((val) => !val || !isNaN(Number(val)), {
-      message: "Must be a number",
-    }),
-  calories: z
-    .string()
-    .optional()
-    .refine((val) => !val || !isNaN(Number(val)), {
-      message: "Must be a number",
-    }),
+  prep_time_minutes: z.string(),
+  calories: z.string(),
+  stock_quantity: z.string(),
+  is_vegetarian: z.boolean(),
+  is_vegan: z.boolean(),
+  is_gluten_free: z.boolean(),
+  allergens: z.string(),
+  tags: z.string(),
+  is_available: z.boolean(),
+  category_ids: z.array(z.string()),
 });
+
+interface MenuFormState {
+  name: string;
+  description: string;
+  price: string;
+  prep_time_minutes: string;
+  calories: string;
+  stock_quantity: string;
+  is_vegetarian: boolean;
+  is_vegan: boolean;
+  is_gluten_free: boolean;
+  allergens: string;
+  tags: string;
+  is_available: boolean;
+  category_ids: string[];
+}
 
 interface MenuFormProps {
   restaurantId: string;
@@ -65,16 +87,31 @@ export function MenuForm({
 }: MenuFormProps) {
   const [images, setImages] = useState<string[]>(initialData?.image_urls || []);
   const [video, setVideo] = useState<string | null>(
-    initialData?.video_url || null
+    initialData?.video_url || null,
   );
   const [uploadingType, setUploadingType] = useState<"image" | "video" | null>(
-    null
+    null,
   );
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+  const [availableCategories, setAvailableCategories] = useState<
+    MenuCategory[]
+  >([]);
   const { toast } = useToast();
 
-  const form = useForm<z.infer<typeof menuSchema>>({
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await getMenuCategories(restaurantId);
+        setAvailableCategories(res.data || []);
+      } catch (error) {
+        console.error("Failed to fetch categories", error);
+      }
+    };
+    fetchCategories();
+  }, [restaurantId]);
+
+  const form = useForm<MenuFormState>({
     resolver: zodResolver(menuSchema),
     defaultValues: {
       name: initialData?.name || "",
@@ -84,6 +121,16 @@ export function MenuForm({
         ? initialData.prep_time_minutes.toString()
         : "",
       calories: initialData?.calories ? initialData.calories.toString() : "",
+      stock_quantity: initialData?.stock_quantity
+        ? initialData.stock_quantity.toString()
+        : "0",
+      is_vegetarian: initialData?.is_vegetarian || false,
+      is_vegan: initialData?.is_vegan || false,
+      is_gluten_free: initialData?.is_gluten_free || false,
+      allergens: initialData?.allergens?.join(", ") || "",
+      tags: initialData?.tags?.join(", ") || "",
+      is_available: initialData?.is_available ?? true,
+      category_ids: initialData?.categories?.map((c) => c.id) || [],
     },
   });
 
@@ -127,8 +174,7 @@ export function MenuForm({
         toast({ title: "Upload successful" });
       }
     } catch (error) {
-      console.error(error);
-      toast({ title: "Upload failed", variant: "destructive" });
+      handleApiError(error, toast, "Upload failed");
     } finally {
       setUploadingType(null);
       setUploadProgress(0);
@@ -137,7 +183,7 @@ export function MenuForm({
 
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: "image" | "video"
+    type: "image" | "video",
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const files = Array.from(e.target.files);
@@ -148,7 +194,7 @@ export function MenuForm({
     e.target.value = "";
   };
 
-  const onSubmit = async (values: z.infer<typeof menuSchema>) => {
+  const onSubmit = async (values: MenuFormState) => {
     try {
       const payload = {
         ...values,
@@ -157,10 +203,26 @@ export function MenuForm({
           ? Number(values.prep_time_minutes)
           : 0,
         calories: values.calories ? Number(values.calories) : 0,
+        stock_quantity: values.stock_quantity
+          ? Number(values.stock_quantity)
+          : 0,
+        allergens: values.allergens
+          ? values.allergens
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s !== "")
+          : [],
+        tags: values.tags
+          ? values.tags
+              .split(",")
+              .map((s) => s.trim())
+              .filter((s) => s !== "")
+          : [],
         restaurant_id: restaurantId,
         image_urls: images,
         video_url: video || "",
-        is_available: true,
+        is_available: values.is_available,
+        category_ids: values.category_ids,
       };
 
       if (initialData) {
@@ -186,12 +248,11 @@ export function MenuForm({
 
       if (onSuccess) onSuccess();
     } catch (error) {
-      toast({
-        title: initialData
-          ? "Failed to update menu item"
-          : "Failed to create menu item",
-        variant: "destructive",
-      });
+      handleApiError(
+        error,
+        toast,
+        initialData ? "Update failed" : "Creation failed",
+      );
     }
   };
 
@@ -407,6 +468,61 @@ export function MenuForm({
           )}
         />
 
+        <FormField
+          control={form.control}
+          name="category_ids"
+          render={() => (
+            <FormItem>
+              <div className="mb-4">
+                <FormLabel className="text-base">Categories</FormLabel>
+                <div className="text-sm text-muted-foreground">
+                  Select the categories this item belongs to.
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {availableCategories.map((category) => (
+                  <FormField
+                    key={category.id}
+                    control={form.control}
+                    name="category_ids"
+                    render={({ field }) => {
+                      return (
+                        <FormItem
+                          key={category.id}
+                          className="flex flex-row items-start space-x-3 space-y-0"
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value?.includes(category.id)}
+                              onCheckedChange={(checked) => {
+                                return checked
+                                  ? field.onChange([
+                                      ...field.value,
+                                      category.id,
+                                    ])
+                                  : field.onChange(
+                                      field.value?.filter(
+                                        (value: string) =>
+                                          value !== category.id,
+                                      ),
+                                    );
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className="text-sm font-normal">
+                            {category.name}
+                          </FormLabel>
+                        </FormItem>
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -453,22 +569,139 @@ export function MenuForm({
           />
         </div>
 
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="prep_time_minutes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Prep Time</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="number"
+                      placeholder="Minutes"
+                      className="pl-9"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="stock_quantity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Stock Quantity</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Utensils className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      className="pl-9"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 p-4 border rounded-xl bg-muted/5">
+          <FormField
+            control={form.control}
+            name="is_vegetarian"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between space-y-0">
+                <FormLabel>Vegetarian</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="is_vegan"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between space-y-0">
+                <FormLabel>Vegan</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="is_gluten_free"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between space-y-0">
+                <FormLabel>Gluten Free</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="is_available"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between space-y-0">
+                <FormLabel>Available</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </div>
+
         <FormField
           control={form.control}
-          name="prep_time_minutes"
+          name="allergens"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Prep Time</FormLabel>
+              <FormLabel>Allergens (comma separated)</FormLabel>
               <FormControl>
-                <div className="relative">
-                  <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="number"
-                    placeholder="Minutes"
-                    className="pl-9"
-                    {...field}
-                  />
-                </div>
+                <Input placeholder="Peanuts, Shellfish, Dairy..." {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="tags"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tags (comma separated)</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Spicy, Popular, Chef Choice..."
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

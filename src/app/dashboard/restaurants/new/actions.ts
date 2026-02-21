@@ -11,7 +11,12 @@ export type CreateRestaurantState = {
   errors?: {
     name?: string[];
     description?: string[];
-    address?: string[];
+    address?: {
+      address?: string[];
+      city?: string[];
+      country?: string[];
+      post_code?: string[];
+    };
     avatar_url?: string[];
     capacity?: string[];
   };
@@ -20,23 +25,46 @@ export type CreateRestaurantState = {
 
 export async function createRestaurantAction(
   prevState: CreateRestaurantState,
-  formData: FormData
+  formData: FormData,
 ): Promise<CreateRestaurantState> {
   const validatedFields = RestaurantFormSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
-    address: formData.get("address"),
+    address: {
+      address: formData.get("address"),
+      city: formData.get("city"),
+      country: formData.get("country"),
+      post_code: formData.get("post_code") || undefined,
+    },
     avatar_url: formData.get("avatar_url"),
     capacity: formData.get("capacity")
       ? Number(formData.get("capacity"))
       : undefined,
     delivery_available: formData.get("delivery_available") === "true",
     takeaway_available: formData.get("takeaway_available") === "true",
+    latitude: formData.get("latitude")
+      ? Number(formData.get("latitude"))
+      : undefined,
+    longitude: formData.get("longitude")
+      ? Number(formData.get("longitude"))
+      : undefined,
   });
 
   if (!validatedFields.success) {
+    const fieldErrors = validatedFields.error.format();
     return {
-      errors: validatedFields.error.flatten().fieldErrors,
+      errors: {
+        name: fieldErrors.name?._errors,
+        description: fieldErrors.description?._errors,
+        address: {
+          address: fieldErrors.address?.address?._errors,
+          city: fieldErrors.address?.city?._errors,
+          country: fieldErrors.address?.country?._errors,
+          post_code: fieldErrors.address?.post_code?._errors,
+        },
+        avatar_url: fieldErrors.avatar_url?._errors,
+        capacity: fieldErrors.capacity?._errors,
+      },
       message: "Missing Fields. Failed to Create Restaurant.",
       success: false,
     };

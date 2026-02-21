@@ -21,6 +21,7 @@ import Link from "next/link";
 import OauthButtons from "../auth/oauth-buttons";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "../../lib/store";
+import { TurnstileWrapper } from "../auth/turnstile";
 
 export function SigninForm() {
   const [error, setError] = useState<string | undefined>("");
@@ -38,11 +39,17 @@ export function SigninForm() {
     },
   });
 
+  const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
+
   function onSubmit(values: z.infer<typeof SigninFormSchema>) {
     setError("");
+
+    // Check if Turnstile is required (can be skipped in absolute dev, but good practice to enforce)
+    // The backend will reject anyway if configured.
+
     startTransition(async () => {
       try {
-        const response = await apiSignin(values);
+        const response = await apiSignin(values, undefined, turnstileToken);
         if (response && response.data) {
           // Store Access Token in Zustand
           if (response.data.access_token) {
@@ -129,6 +136,9 @@ export function SigninForm() {
           {error && (
             <p className="text-sm font-medium text-destructive">{error}</p>
           )}
+
+          <TurnstileWrapper onVerify={setTurnstileToken} />
+
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Sign In

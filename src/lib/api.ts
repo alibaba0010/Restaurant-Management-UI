@@ -1,9 +1,14 @@
-import { UserRole } from "./types";
+import {
+  UserRole,
+  Menu,
+  MenuCategory,
+  Restaurant,
+  Order,
+  OrderItem,
+} from "./types";
 
-const isServer = typeof window === "undefined";
-export const API_BASE_URL = isServer
-  ? process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"
-  : process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"; // Use direct URL in dev to avoid proxy timeouts
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1"; // Use direct URL in dev to avoid proxy timeouts
 
 export class ApiError extends Error {
   constructor(
@@ -11,6 +16,7 @@ export class ApiError extends Error {
     public status: number,
     public title?: string,
     public data?: any,
+    public requestId?: string | null,
   ) {
     super(message);
     this.name = "ApiError";
@@ -32,6 +38,7 @@ export interface ApiResponse<T = any> {
   data: T;
   message?: string;
   title?: string;
+  request_id?: string;
   meta?: {
     total?: number;
     page?: number;
@@ -42,20 +49,28 @@ export interface ApiResponse<T = any> {
   };
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1s
+const DEFAULT_TIMEOUT = 15000; // 15s
+
 async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
   const contentType = res.headers.get("content-type");
+  const headerRequestId = res.headers.get("X-Request-ID");
   const isJson = contentType?.includes("application/json");
+
   if (!res.ok) {
     let message = "An error occurred";
     let title = "Error";
     let errorData = null;
+    let bodyRequestId = null;
 
     if (isJson) {
       try {
         const json = await res.json();
         message = json.message || json.error || message;
         title = json.title || title;
-        errorData = json.data || json;
+        errorData = json.data || json.response || json;
+        bodyRequestId = json.request_id || json.requestId;
       } catch (e) {
         message = `Request failed with status ${res.status}`;
       }
@@ -63,15 +78,40 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
       message = `Request failed with status ${res.status}`;
     }
 
-    throw new ApiError(message, res.status, title, errorData);
+    if (res.status === 429) {
+      title = "Too Many Requests";
+      message =
+        "You are doing that too much. Our rate limiter has kicked in. Please wait a moment before trying again.";
+    } else if (res.status >= 500) {
+      title = "Server Error";
+      message =
+        "We're experiencing some technical difficulties on our end. Our engineers have been notified.";
+    } else if (
+      res.status === 403 &&
+      (message.toLowerCase().includes("turnstile") ||
+        message.toLowerCase().includes("captcha"))
+    ) {
+      title = "Security Verification Failed";
+      message = "Please complete the security challenge to proceed.";
+    }
+
+    const requestId = headerRequestId || bodyRequestId;
+    if (requestId) {
+      console.error(
+        `[API Error] ${title}: ${message} (Request ID: ${requestId})`,
+      );
+    }
+
+    throw new ApiError(message, res.status, title, errorData, requestId);
   }
 
   if (isJson) {
     const json = await res.json();
     return {
-      data: json.data || json,
+      data: json.data || json.response || json,
       message: json.message,
       title: json.title,
+      request_id: json.request_id || headerRequestId || undefined,
       meta: json.meta,
     };
   }
@@ -79,26 +119,43 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
   return {
     data: null as T,
     message: "Success",
+    request_id: headerRequestId || undefined,
   };
 }
 
 type FetchOptions = RequestInit & {
   userAgent?: string;
   cookieHeader?: string;
+  turnstileToken?: string;
+  timeout?: number;
+  retries?: number;
 };
 
 import { useAuthStore } from "./store";
 
 let refreshPromise: Promise<any> | null = null;
 
-async function fetchClient(endpoint: string, options: FetchOptions = {}) {
-  const { userAgent, cookieHeader, headers: customHeaders, ...rest } = options;
+/**
+ * Enhanced fetch client with retries, timeouts, and production-grade observability.
+ */
+async function fetchClient<T = any>(
+  endpoint: string,
+  options: FetchOptions = {},
+): Promise<ApiResponse<T>> {
+  const {
+    userAgent,
+    cookieHeader,
+    headers: customHeaders,
+    turnstileToken,
+    timeout = DEFAULT_TIMEOUT,
+    retries = MAX_RETRIES,
+    ...rest
+  } = options;
+
   const headers: Record<string, string> = {
     ...(customHeaders as Record<string, string>),
   };
 
-  // Set default content type if not provided and not FormData
-  // Note: We check if body is FormData. In Node environment this might need check, but for client side it works.
   if (!headers["Content-Type"] && !(rest.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
@@ -106,8 +163,12 @@ async function fetchClient(endpoint: string, options: FetchOptions = {}) {
   if (userAgent) headers["User-Agent"] = userAgent;
   if (cookieHeader) headers["Cookie"] = cookieHeader;
 
-  // If client-side and no specific token override (via Authorization header already), try to get from store
-  if (!isServer && !headers["Authorization"]) {
+  // Cloudflare Turnstile Support
+  if (turnstileToken) {
+    headers["X-Turnstile-Token"] = turnstileToken;
+  }
+
+  if (!headers["Authorization"]) {
     let token = useAuthStore.getState().accessToken;
 
     // Check if token is expired and refresh if necessary
@@ -124,8 +185,7 @@ async function fetchClient(endpoint: string, options: FetchOptions = {}) {
           token = refresh.token;
         }
       } catch (error) {
-        console.error("Auto-refresh failed", error);
-        // Optionally redirect to login if refresh fails completely
+        console.error("[Auth] Auto-refresh failed", error);
       }
     }
 
@@ -134,28 +194,79 @@ async function fetchClient(endpoint: string, options: FetchOptions = {}) {
     }
   }
 
-  const res = await fetch(`${API_BASE_URL}${endpoint}`, {
-    headers,
-    credentials: "include",
-    ...rest,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  return handleResponse(res);
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        // Exponential backoff
+        const delay = RETRY_DELAY * Math.pow(2, attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        console.log(
+          `[API] Retrying request to ${endpoint} (Attempt ${attempt + 1}/${retries + 1})...`,
+        );
+      }
+
+      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+        headers,
+        credentials: "include",
+        signal: controller.signal,
+        ...rest,
+      });
+
+      // Clear timeout if successful
+      clearTimeout(timeoutId);
+
+      return await handleResponse<T>(res);
+    } catch (error: any) {
+      lastError = error;
+
+      // Only retry on transient errors or network issues
+      const isTransient =
+        error.status === 429 || (error.status >= 502 && error.status <= 504);
+      const isNetworkError =
+        error.name === "AbortError" ||
+        error.message === "Failed to fetch" ||
+        !error.status;
+
+      if ((isTransient || isNetworkError) && attempt < retries) {
+        continue;
+      }
+
+      break;
+    }
+  }
+
+  clearTimeout(timeoutId);
+  throw lastError;
 }
 
-export async function apiSignin(data: any, userAgent?: string) {
+export async function apiSignin(
+  data: any,
+  userAgent?: string,
+  turnstileToken?: string,
+) {
   return fetchClient("/auth/signin", {
     method: "POST",
     body: JSON.stringify(data),
     userAgent,
+    turnstileToken,
   });
 }
 
-export async function apiSignup(data: any, userAgent?: string) {
+export async function apiSignup(
+  data: any,
+  userAgent?: string,
+  turnstileToken?: string,
+) {
   return fetchClient("/auth/signup", {
     method: "POST",
     body: JSON.stringify(data),
     userAgent,
+    turnstileToken,
   });
 }
 
@@ -282,7 +393,12 @@ export async function adminUpdateUser(
 }
 
 export async function apiUpdateUser(data: {
-  address?: string;
+  address?: {
+    address: string;
+    city: string;
+    country: string;
+    post_code?: string;
+  };
   phone_number?: string;
 }) {
   return fetchClient("/user", {
@@ -334,11 +450,13 @@ export async function updateRestaurant(id: string, data: any) {
 export async function apiForgotPassword(
   data: { email: string },
   userAgent?: string,
+  turnstileToken?: string,
 ) {
   return fetchClient("/auth/forgot-password", {
     method: "POST",
     body: JSON.stringify(data),
     userAgent,
+    turnstileToken,
   });
 }
 
@@ -637,4 +755,15 @@ export async function getOrderById(id: string) {
   return fetchClient(`/orders/${id}`, {
     cache: "no-store",
   });
+}
+export async function apiHealthCheck() {
+  return fetchClient("/healthcheck", {
+    cache: "no-store",
+  });
+}
+
+export async function getMenuCategories(restaurantId: string) {
+  return fetchClient<MenuCategory[]>(
+    `/categories?restaurant_id=${restaurantId}`,
+  );
 }

@@ -116,7 +116,7 @@ export function MenuList({ restaurantId, refreshTrigger }: MenuListProps) {
                     variant="secondary"
                     className="bg-primary/10 text-primary border-none"
                   >
-                    ${menu.price.toFixed(2)}
+                    ${parseFloat(menu.price).toFixed(2)}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-2">

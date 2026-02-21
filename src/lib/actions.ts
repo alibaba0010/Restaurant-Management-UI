@@ -25,10 +25,10 @@ export type ResetPasswordState = {
 
 export async function signup(
   prevState: SignupState,
-  formData: FormData
+  formData: FormData,
 ): Promise<SignupState> {
   const validatedFields = SignupFormSchema.safeParse(
-    Object.fromEntries(formData.entries())
+    Object.fromEntries(formData.entries()),
   );
 
   if (!validatedFields.success) {
@@ -42,7 +42,12 @@ export async function signup(
   try {
     const headersList = await headers();
     const userAgent = headersList.get("user-agent") || "";
-    const response = await apiSignup(validatedFields.data, userAgent);
+    const turnstileToken = formData.get("turnstile_token") as string;
+    const response = await apiSignup(
+      validatedFields.data,
+      userAgent,
+      turnstileToken,
+    );
     return {
       message:
         response.message ||
@@ -59,10 +64,10 @@ export async function signup(
 
 export async function forgotPassword(
   prevState: ForgotPasswordState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ForgotPasswordState> {
   const validatedFields = ForgotPasswordSchema.safeParse(
-    Object.fromEntries(formData.entries())
+    Object.fromEntries(formData.entries()),
   );
 
   if (!validatedFields.success) {
@@ -75,7 +80,12 @@ export async function forgotPassword(
   try {
     const headersList = await headers();
     const userAgent = headersList.get("user-agent") || "";
-    const response = await apiForgotPassword(validatedFields.data, userAgent);
+    const turnstileToken = formData.get("turnstile_token") as string;
+    const response = await apiForgotPassword(
+      validatedFields.data,
+      userAgent,
+      turnstileToken,
+    );
     return {
       message:
         response.message ||
@@ -92,10 +102,10 @@ export async function forgotPassword(
 
 export async function resetPassword(
   prevState: ResetPasswordState,
-  formData: FormData
+  formData: FormData,
 ): Promise<ResetPasswordState> {
   const validatedFields = ResetPasswordSchema.safeParse(
-    Object.fromEntries(formData.entries())
+    Object.fromEntries(formData.entries()),
   );
 
   if (!validatedFields.success) {

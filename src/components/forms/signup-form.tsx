@@ -21,6 +21,7 @@ import OauthButtons from "../auth/oauth-buttons";
 import { useToast } from "../../hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { TurnstileWrapper } from "../auth/turnstile";
 
 export function SignupForm() {
   const [error, setError] = useState<string | undefined>("");
@@ -29,6 +30,7 @@ export function SignupForm() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
   const router = useRouter();
+  const [turnstileToken, setTurnstileToken] = useState<string | undefined>();
 
   const form = useForm<z.infer<typeof SignupFormSchema>>({
     resolver: zodResolver(SignupFormSchema),
@@ -47,6 +49,9 @@ export function SignupForm() {
       Object.entries(values).forEach(([key, value]) => {
         formData.append(key, value);
       });
+      if (turnstileToken) {
+        formData.append("turnstile_token", turnstileToken);
+      }
       const result = await signup({ message: "", success: false }, formData);
       if (result.success) {
         // Store email in localStorage for resend functionality
@@ -177,6 +182,9 @@ export function SignupForm() {
           {error && (
             <p className="text-sm font-medium text-destructive">{error}</p>
           )}
+
+          <TurnstileWrapper onVerify={setTurnstileToken} />
+
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Account

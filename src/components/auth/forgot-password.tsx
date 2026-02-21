@@ -9,6 +9,8 @@ import { showErrorToast } from "../../lib/api-toast";
 import Link from "next/link";
 import { forgotPassword, ForgotPasswordState } from "../../lib/actions";
 import { toast } from "../../hooks/use-toast";
+import { TurnstileWrapper } from "./turnstile";
+import { useState } from "react";
 
 const initialState: ForgotPasswordState = {
   message: "",
@@ -18,8 +20,9 @@ const initialState: ForgotPasswordState = {
 export function ForgotPassword() {
   const [state, formAction, isPending] = useActionState(
     forgotPassword,
-    initialState
+    initialState,
   );
+  const [turnstileToken, setTurnstileToken] = useState<string>("");
 
   useEffect(() => {
     if (state.message) {
@@ -95,6 +98,9 @@ export function ForgotPassword() {
           We'll send a password reset link to this email
         </p>
       </div>
+
+      <input type="hidden" name="turnstile_token" value={turnstileToken} />
+      <TurnstileWrapper onVerify={setTurnstileToken} />
 
       <Button type="submit" disabled={isPending} className="w-full">
         {isPending ? (

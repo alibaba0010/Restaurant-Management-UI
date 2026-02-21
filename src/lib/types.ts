@@ -30,6 +30,52 @@ export enum RestaurantStatus {
   DELETED = "deleted",
 }
 
+/**
+ * OrderStatus represents the current state of an order.
+ * Matches backend internal/common/types/status.go
+ */
+export enum OrderStatus {
+  PENDING = "pending",
+  CONFIRMED = "confirmed",
+  PREPARING = "preparing",
+  READY = "ready",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+}
+
+/**
+ * PaymentStatus represents the state of a payment for an order.
+ */
+export enum PaymentStatus {
+  PENDING = "pending",
+  PROCESSING = "processing",
+  SUCCESS = "success",
+  PAID = "paid", // Alias for success
+  FAILED = "failed",
+  CANCELLED = "cancelled",
+  REFUNDED = "refunded",
+  REFUNDING = "refunding",
+  PARTIALLY_REFUNDED = "partially_refunded",
+}
+
+/**
+ * PaymentProvider represents the payment provider.
+ */
+export enum PaymentProvider {
+  MONNIFY = "monnify",
+  PAYSTACK = "paystack",
+  FLUTTERWAVE = "flutterwave",
+}
+
+/**
+ * OrderType represents the type of fulfillment for an order.
+ */
+export enum OrderType {
+  DELIVERY = "delivery",
+  PICKUP = "pickup",
+  DINE_IN = "dine_in",
+}
+
 export interface User {
   id: string;
   name: string;
@@ -57,17 +103,34 @@ export const hasPermission = (
   return hierarchy[userRole] >= hierarchy[requiredRole];
 };
 
+export interface MenuCategory {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  description?: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Menu {
   id: string;
   name: string;
   description: string;
-  price: number;
+  price: string;
   image_urls: string[];
   video_url?: string;
   restaurant_id: string;
   is_available: boolean;
   prep_time_minutes?: number;
   calories?: number;
+  stock_quantity: number;
+  is_vegetarian: boolean;
+  is_vegan: boolean;
+  is_gluten_free: boolean;
+  allergens?: string[];
+  tags?: string[];
+  categories?: MenuCategory[];
   created_at: string;
   updated_at: string;
 }
@@ -77,18 +140,18 @@ export interface Restaurant {
   name: string;
   description: string;
   address: string;
-  phone_number: string;
+  phone_number?: string;
+  avatar_url?: string;
   user_id: string;
   status: RestaurantStatus;
+  capacity?: number;
+  delivery_available: boolean;
+  takeaway_available: boolean;
+  rating?: number;
+  latitude?: number;
+  longitude?: number;
   created_at: string;
   updated_at: string;
-}
-
-export enum OrderStatus {
-  PENDING = "pending",
-  PROCESSING = "processing",
-  COMPLETED = "completed",
-  CANCELLED = "cancelled",
 }
 
 export interface OrderItem {
@@ -106,8 +169,20 @@ export interface Order {
   restaurant_id: string;
   total_amount: number;
   status: OrderStatus;
+  order_type: OrderType;
+  payment_status: PaymentStatus;
+  payment_provider?: PaymentProvider;
   delivery_address: string;
   items?: OrderItem[];
   created_at: string;
   updated_at: string;
+}
+
+export interface HealthCheckResponse {
+  status: string;
+  timestamp: string;
+  services: {
+    postgres: string;
+    redis: string;
+  };
 }

@@ -23,7 +23,7 @@ export default function NewRestaurantPage() {
   const initialState = { message: "", errors: {} };
   const [state, dispatch] = useActionState(
     createRestaurantAction,
-    initialState
+    initialState,
   );
 
   return (
@@ -76,20 +76,55 @@ export default function NewRestaurantPage() {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Input
-                    id="address"
-                    name="address"
-                    placeholder="123 Main St"
-                    required
-                    minLength={5}
-                  />
-                  {state.errors?.address && (
-                    <p className="text-sm text-destructive">
-                      {state.errors.address.join(", ")}
-                    </p>
-                  )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Street Address</Label>
+                    <Input
+                      id="address"
+                      name="address"
+                      placeholder="123 Main St"
+                      required
+                    />
+                    {state.errors?.address?.address && (
+                      <p className="text-sm text-destructive">
+                        {state.errors.address.address.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input id="city" name="city" placeholder="Lagos" required />
+                    {state.errors?.address?.city && (
+                      <p className="text-sm text-destructive">
+                        {state.errors.address.city.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <Input
+                      id="country"
+                      name="country"
+                      placeholder="Nigeria"
+                      required
+                    />
+                    {state.errors?.address?.country && (
+                      <p className="text-sm text-destructive">
+                        {state.errors.address.country.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="post_code">Post Code (Optional)</Label>
+                    <Input
+                      id="post_code"
+                      name="post_code"
+                      placeholder="100001"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -142,6 +177,29 @@ export default function NewRestaurantPage() {
                     className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                   />
                   <Label htmlFor="takeaway_available">Takeaway Available</Label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="latitude">Latitude (optional)</Label>
+                    <Input
+                      id="latitude"
+                      name="latitude"
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 6.5244"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="longitude">Longitude (optional)</Label>
+                    <Input
+                      id="longitude"
+                      name="longitude"
+                      type="number"
+                      step="any"
+                      placeholder="e.g. 3.3792"
+                    />
+                  </div>
                 </div>
 
                 {state.message && (

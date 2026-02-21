@@ -24,7 +24,12 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
 
   // Local state for editing
-  const [address, setAddress] = useState(user?.address || "");
+  const [addressData, setAddressData] = useState({
+    address: "",
+    city: "",
+    country: "",
+    post_code: "",
+  });
   const [phoneNumber, setPhoneNumber] = useState(user?.phone_number || "");
 
   // Track which field is being updated
@@ -35,8 +40,10 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       const data =
-        field === "address" ? { address } : { phone_number: phoneNumber };
-      const res = await withToast(() => apiUpdateUser(data), {
+        field === "address"
+          ? { address: addressData }
+          : { phone_number: phoneNumber };
+      const res = await withToast(() => apiUpdateUser(data as any), {
         successMessage: `${
           field === "address" ? "Address" : "Phone number"
         } updated successfully.`,
@@ -108,7 +115,7 @@ export default function SettingsPage() {
                 {/* Address Field */}
                 <div className="space-y-2">
                   <Label htmlFor="address">Address</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-4">
                     {user.address && !isUpdatingAddress ? (
                       <div className="flex flex-1 items-center justify-between bg-accent/5 p-3 rounded-md border border-accent/10">
                         <span className="text-foreground">{user.address}</span>
@@ -116,7 +123,6 @@ export default function SettingsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setAddress(user.address || "");
                             setIsUpdatingAddress(true);
                           }}
                         >
@@ -124,32 +130,94 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <>
-                        <Input
-                          id="address"
-                          placeholder="Enter your street address"
-                          value={address}
-                          onChange={(e) => setAddress(e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button
-                          onClick={() => handleUpdate("address")}
-                          disabled={loading || !address}
-                        >
-                          {loading && isUpdatingAddress ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : null}
-                          Save
-                        </Button>
-                        {user.address && (
+                      <div className="grid gap-4 bg-accent/5 p-4 rounded-md border border-accent/10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="street">Street Address</Label>
+                            <Input
+                              id="street"
+                              placeholder="123 Main St"
+                              value={addressData.address}
+                              onChange={(e) =>
+                                setAddressData({
+                                  ...addressData,
+                                  address: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="city">City</Label>
+                            <Input
+                              id="city"
+                              placeholder="Lagos"
+                              value={addressData.city}
+                              onChange={(e) =>
+                                setAddressData({
+                                  ...addressData,
+                                  city: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="country">Country</Label>
+                            <Input
+                              id="country"
+                              placeholder="Nigeria"
+                              value={addressData.country}
+                              onChange={(e) =>
+                                setAddressData({
+                                  ...addressData,
+                                  country: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="post_code">
+                              Post Code (Optional)
+                            </Label>
+                            <Input
+                              id="post_code"
+                              placeholder="100001"
+                              value={addressData.post_code}
+                              onChange={(e) =>
+                                setAddressData({
+                                  ...addressData,
+                                  post_code: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
                           <Button
-                            variant="ghost"
-                            onClick={() => setIsUpdatingAddress(false)}
+                            onClick={() => handleUpdate("address")}
+                            disabled={
+                              loading ||
+                              !addressData.address ||
+                              !addressData.city ||
+                              !addressData.country
+                            }
                           >
-                            Cancel
+                            {loading && isUpdatingAddress ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : null}
+                            Save Address
                           </Button>
-                        )}
-                      </>
+                          {user.address && (
+                            <Button
+                              variant="ghost"
+                              onClick={() => setIsUpdatingAddress(false)}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
