@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { Menu } from "@/lib/types";
 import { getMenuById } from "@/lib/api";
 import { MenuForm } from "@/components/restaurants/menu-form";
-import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/layout/header";
+import Footer from "@/components/layout/footer";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function EditMenuPage({
   params,
@@ -53,25 +55,29 @@ export default function EditMenuPage({
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <h1 className="text-3xl font-bold font-headline">Edit Menu Item</h1>
-      </div>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-grow container mx-auto px-4 py-8 max-w-3xl">
+        <BackButton label="Back to Menu" href={`/menus/${id}`} />
+        <div className="space-y-6">
+          <h1 className="text-3xl font-bold font-headline mb-8">
+            Edit Menu Item
+          </h1>
 
-      <div className="bg-card border rounded-xl p-6 shadow-sm">
-        <MenuForm
-          restaurantId={menu.restaurant_id}
-          initialData={menu}
-          onSuccess={() => {
-            // Navigate back to menu details on success
-            router.push(`/menus/${id}`);
-            router.refresh();
-          }}
-        />
-      </div>
+          <div className="bg-card border rounded-xl p-6 shadow-sm">
+            <MenuForm
+              restaurantId={menu.restaurant_id}
+              initialData={menu}
+              onSuccess={() => {
+                // Navigate back to menu details on success
+                router.push(`/menus/${id}`);
+                router.refresh();
+              }}
+            />
+          </div>
+        </div>
+      </main>
+      <Footer />
     </div>
   );
 }

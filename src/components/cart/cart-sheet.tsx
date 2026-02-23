@@ -124,8 +124,8 @@ export function CartSheet() {
                       <h4 className="font-medium text-sm line-clamp-1">
                         {item.name}
                       </h4>
-                      <p className="text-sm text-muted-foreground">
-                        ${item.price.toFixed(2)}
+                      <p className="text-sm text-primary font-medium">
+                        ${Number(item.price).toFixed(2)}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -144,8 +144,23 @@ export function CartSheet() {
                         <Button
                           variant="outline"
                           size="icon"
-                          className="h-6 w-6"
-                          onClick={() => updateQuantity(item.id, "increment")}
+                          className={`h-6 w-6 ${
+                            item.quantity >= item.stock_quantity
+                              ? "opacity-30 cursor-not-allowed"
+                              : ""
+                          }`}
+                          onClick={() => {
+                            if (item.quantity < item.stock_quantity) {
+                              updateQuantity(item.id, "increment");
+                            } else {
+                              toast({
+                                title: "Limit reached",
+                                description: `Only ${item.stock_quantity} units available.`,
+                                variant: "destructive",
+                              });
+                            }
+                          }}
+                          disabled={item.quantity >= item.stock_quantity}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>

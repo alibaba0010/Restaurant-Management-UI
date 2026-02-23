@@ -34,11 +34,15 @@ import {
   Clock,
   Flame,
   FileVideo,
-  Image as ImageIcon,
+  ChevronRight,
+  ChevronLeft,
+  CheckCircle2,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { handleApiError } from "@/lib/utils";
+import { CategoryManager } from "./category-manager";
 
 const menuSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -55,24 +59,13 @@ const menuSchema = z.object({
   allergens: z.string(),
   tags: z.string(),
   is_available: z.boolean(),
-  category_ids: z.array(z.string()),
+  category_ids: z
+    .array(z.string())
+    .min(1, "You must select at least one category")
+    .max(5, "You can select a maximum of 5 categories per menu item"),
 });
 
-interface MenuFormState {
-  name: string;
-  description: string;
-  price: string;
-  prep_time_minutes: string;
-  calories: string;
-  stock_quantity: string;
-  is_vegetarian: boolean;
-  is_vegan: boolean;
-  is_gluten_free: boolean;
-  allergens: string;
-  tags: string;
-  is_available: boolean;
-  category_ids: string[];
-}
+type MenuFormState = z.infer<typeof menuSchema>;
 
 interface MenuFormProps {
   restaurantId: string;
@@ -85,6 +78,7 @@ export function MenuForm({
   initialData,
   onSuccess,
 }: MenuFormProps) {
+  const [step, setStep] = useState<1 | 2>(1);
   const [images, setImages] = useState<string[]>(initialData?.image_urls || []);
   const [video, setVideo] = useState<string | null>(
     initialData?.video_url || null,
@@ -94,25 +88,29 @@ export function MenuForm({
   );
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
+  const [videoDragActive, setVideoDragActive] = useState(false);
   const [availableCategories, setAvailableCategories] = useState<
     MenuCategory[]
   >([]);
+  const [submitCooldown, setSubmitCooldown] = useState(false);
   const { toast } = useToast();
 
+  const fetchCategories = async () => {
+    try {
+      const res = await getMenuCategories(restaurantId);
+      setAvailableCategories(res.data || []);
+    } catch (error) {
+      console.error("Failed to fetch categories", error);
+    }
+  };
+
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await getMenuCategories(restaurantId);
-        setAvailableCategories(res.data || []);
-      } catch (error) {
-        console.error("Failed to fetch categories", error);
-      }
-    };
     fetchCategories();
   }, [restaurantId]);
 
   const form = useForm<MenuFormState>({
     resolver: zodResolver(menuSchema),
+    mode: "onChange",
     defaultValues: {
       name: initialData?.name || "",
       description: initialData?.description || "",
@@ -134,14 +132,28 @@ export function MenuForm({
     },
   });
 
+  const watchedName = form.watch("name");
+  const watchedPrice = form.watch("price");
+  const watchedCategoryIds = form.watch("category_ids");
+
+  // Step 1 is valid when name is filled (min 2 chars)
+  const step1Valid = watchedName.trim().length >= 2;
+
+  // Step 2 is valid when price > 0 and at least 1 category selected
+  const priceNum = Number(watchedPrice);
+  const step2Valid =
+    !isNaN(priceNum) &&
+    priceNum > 0 &&
+    watchedCategoryIds.length >= 1 &&
+    !form.formState.isSubmitting &&
+    !submitCooldown;
+
+  // ——— File upload helpers ———
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
   };
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -149,10 +161,37 @@ export function MenuForm({
     e.stopPropagation();
     setDragActive(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      // Handle the first file for now, ideally check type
       const file = e.dataTransfer.files[0];
-      const type = file.type.startsWith("image") ? "image" : "video";
-      await processFileUpload(file, type);
+      // Image zone only accepts image files
+      if (file.type.startsWith("image")) {
+        await processFileUpload(file, "image");
+      }
+    }
+  };
+
+  const handleVideoDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover")
+      setVideoDragActive(true);
+    else if (e.type === "dragleave") setVideoDragActive(false);
+  };
+
+  const handleVideoDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setVideoDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith("video")) {
+        await processFileUpload(file, "video");
+      } else {
+        toast({
+          title: "Invalid file",
+          description: "Please drop a video file.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -164,13 +203,9 @@ export function MenuForm({
         setUploadProgress(progress);
       });
       const url = res.data?.url || (res.data as any)?.data?.url;
-
       if (url) {
-        if (type === "image") {
-          setImages([...images, url]);
-        } else {
-          setVideo(url);
-        }
+        if (type === "image") setImages((prev) => [...prev, url]);
+        else setVideo(url);
         toast({ title: "Upload successful" });
       }
     } catch (error) {
@@ -186,15 +221,16 @@ export function MenuForm({
     type: "image" | "video",
   ) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    const files = Array.from(e.target.files);
-
-    for (const file of files) {
+    for (const file of Array.from(e.target.files)) {
       await processFileUpload(file, type);
     }
     e.target.value = "";
   };
 
+  // ——— Submit ———
   const onSubmit = async (values: MenuFormState) => {
+    setSubmitCooldown(true);
+    setTimeout(() => setSubmitCooldown(false), 2000);
     try {
       const payload = {
         ...values,
@@ -210,13 +246,13 @@ export function MenuForm({
           ? values.allergens
               .split(",")
               .map((s) => s.trim())
-              .filter((s) => s !== "")
+              .filter(Boolean)
           : [],
         tags: values.tags
           ? values.tags
               .split(",")
               .map((s) => s.trim())
-              .filter((s) => s !== "")
+              .filter(Boolean)
           : [],
         restaurant_id: restaurantId,
         image_urls: images,
@@ -233,19 +269,12 @@ export function MenuForm({
         toast({ title: "Menu item created successfully" });
       }
 
-      // Only reset if creating new, or explicitly desired.
-      // Usually keep form filled on update or close modal?
-      // Since this behaves likely in a modal or separate page, onSuccess usually closes it.
-      // If standalone page, maybe redirect?
-      // If I am editing, I might not want to clear the form unless I close the edit view.
-      // But typically `onSuccess` handles navigation.
-
       if (!initialData) {
         form.reset();
         setImages([]);
         setVideo(null);
+        setStep(1);
       }
-
       if (onSuccess) onSuccess();
     } catch (error) {
       handleApiError(
@@ -256,17 +285,112 @@ export function MenuForm({
     }
   };
 
+  // ——— Step indicator ———
+  const StepIndicator = () => (
+    <div className="flex items-center justify-center gap-3 mb-6">
+      {/* Step 1 bubble */}
+      <div className="flex items-center gap-2">
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
+            step === 1
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+              : "bg-green-500 text-white"
+          }`}
+        >
+          {step > 1 ? <CheckCircle2 className="w-4 h-4" /> : "1"}
+        </div>
+        <span
+          className={`text-xs font-medium hidden sm:block ${step === 1 ? "text-foreground" : "text-muted-foreground"}`}
+        >
+          Basic Info
+        </span>
+      </div>
+
+      {/* Connector */}
+      <div
+        className={`h-0.5 w-10 sm:w-16 rounded-full transition-all duration-500 ${step > 1 ? "bg-primary" : "bg-muted"}`}
+      />
+
+      {/* Step 2 bubble */}
+      <div className="flex items-center gap-2">
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
+            step === 2
+              ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+              : "bg-muted text-muted-foreground"
+          }`}
+        >
+          2
+        </div>
+        <span
+          className={`text-xs font-medium hidden sm:block ${step === 2 ? "text-foreground" : "text-muted-foreground"}`}
+        >
+          Details
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-0">
+        <StepIndicator />
+
+        {/* ───────────────────────── STEP 1 ───────────────────────── */}
+        <div
+          className={`space-y-5 transition-all duration-300 ${step === 1 ? "block animate-in fade-in slide-in-from-right-4" : "hidden"}`}
+        >
+          {/* Name */}
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>
+                  Name <span className="text-destructive">*</span>
+                </FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <Utensils className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Dish Name (e.g., Truffle Pasta)"
+                      className="pl-9"
+                      {...field}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Description */}
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Describe the flavors, ingredients..."
+                    className="resize-none"
+                    rows={3}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* Recipe Images */}
           <div className="space-y-2">
             <FormLabel className="text-accent font-semibold">
               Recipe Images
             </FormLabel>
             <div
-              className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 group ${
+              className={`relative border-2 border-dashed rounded-xl p-6 transition-all duration-300 group ${
                 dragActive
                   ? "border-primary bg-primary/5 ring-4 ring-primary/10"
                   : "border-muted-foreground/20 bg-muted/5 hover:bg-muted/10 hover:border-primary/50"
@@ -276,9 +400,9 @@ export function MenuForm({
               onDragOver={handleDrag}
               onDrop={handleDrop}
             >
-              <div className="flex flex-col items-center justify-center space-y-3">
-                <div className="p-4 bg-background rounded-full shadow-sm group-hover:scale-110 transition-transform duration-300">
-                  <UploadCloud className="w-8 h-8 text-primary" />
+              <div className="flex flex-col items-center justify-center space-y-2">
+                <div className="p-3 bg-background rounded-full shadow-sm group-hover:scale-110 transition-transform duration-300">
+                  <UploadCloud className="w-7 h-7 text-primary" />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-medium">
@@ -287,10 +411,10 @@ export function MenuForm({
                     </span>
                     <span className="text-muted-foreground">
                       {" "}
-                      or drag and drop
+                      or drag & drop
                     </span>
                   </p>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     PNG, JPG (large files supported)
                   </p>
                 </div>
@@ -304,10 +428,10 @@ export function MenuForm({
                 />
               </div>
               {uploadingType === "image" && (
-                <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10 transition-all">
-                  <div className="flex flex-col items-center gap-3 w-full max-w-[200px] px-4">
+                <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10">
+                  <div className="flex flex-col items-center gap-2 w-full max-w-[180px] px-4">
                     <div className="relative flex items-center justify-center">
-                      <Loader2 className="w-12 h-12 animate-spin text-primary opacity-20" />
+                      <Loader2 className="w-10 h-10 animate-spin text-primary opacity-20" />
                       <span className="absolute text-[10px] font-bold text-primary">
                         {uploadProgress}%
                       </span>
@@ -327,7 +451,7 @@ export function MenuForm({
             </div>
 
             {images.length > 0 && (
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-3 mt-4">
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mt-3">
                 {images.map((url, i) => (
                   <div
                     key={i}
@@ -348,7 +472,7 @@ export function MenuForm({
                         }
                         className="bg-destructive hover:bg-destructive/90 text-white p-1.5 rounded-full shadow-lg transform scale-75 group-hover:scale-100 transition-transform"
                       >
-                        <X className="w-4 h-4" />
+                        <X className="w-3 h-3" />
                       </button>
                     </div>
                   </div>
@@ -357,22 +481,41 @@ export function MenuForm({
             )}
           </div>
 
-          {/* Short Video Section */}
+          {/* Short Video */}
           <div className="space-y-2">
             <FormLabel className="text-accent font-semibold">
-              Short Video (optional)
+              Short Video{" "}
+              <span className="text-muted-foreground font-normal text-xs">
+                (optional)
+              </span>
             </FormLabel>
             {!video ? (
-              <div className="relative border-2 border-dashed border-muted-foreground/20 rounded-xl p-8 bg-muted/5 hover:bg-muted/10 hover:border-primary/50 transition-all group">
-                <div className="flex flex-col items-center justify-center space-y-3">
-                  <div className="p-4 bg-background rounded-full shadow-sm group-hover:scale-110 transition-transform duration-300">
-                    <Video className="w-8 h-8 text-primary" />
+              <div
+                className={`relative border-2 border-dashed rounded-xl p-6 transition-all duration-300 group ${
+                  videoDragActive
+                    ? "border-primary bg-primary/5 ring-4 ring-primary/10"
+                    : "border-muted-foreground/20 bg-muted/5 hover:bg-muted/10 hover:border-primary/50"
+                }`}
+                onDragEnter={handleVideoDrag}
+                onDragLeave={handleVideoDrag}
+                onDragOver={handleVideoDrag}
+                onDrop={handleVideoDrop}
+              >
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <div className="p-3 bg-background rounded-full shadow-sm group-hover:scale-110 transition-transform duration-300">
+                    <Video className="w-7 h-7 text-primary" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium text-primary hover:underline cursor-pointer">
-                      Click to upload a video
+                    <p className="text-sm font-medium">
+                      <span className="text-primary hover:underline cursor-pointer">
+                        Click to upload a video
+                      </span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        or drag &amp; drop
+                      </span>
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       MP4, MKV (large files supported)
                     </p>
                   </div>
@@ -385,10 +528,10 @@ export function MenuForm({
                   />
                 </div>
                 {uploadingType === "video" && (
-                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10 transition-all">
-                    <div className="flex flex-col items-center gap-3 w-full max-w-[200px] px-4">
+                  <div className="absolute inset-0 bg-background/60 flex items-center justify-center rounded-xl backdrop-blur-sm z-10">
+                    <div className="flex flex-col items-center gap-2 w-full max-w-[180px] px-4">
                       <div className="relative flex items-center justify-center">
-                        <Loader2 className="w-12 h-12 animate-spin text-primary opacity-20" />
+                        <Loader2 className="w-10 h-10 animate-spin text-primary opacity-20" />
                         <span className="absolute text-[10px] font-bold text-primary">
                           {uploadProgress}%
                         </span>
@@ -408,8 +551,8 @@ export function MenuForm({
               </div>
             ) : (
               <div className="relative aspect-video rounded-xl overflow-hidden border-2 border-muted/20 bg-black flex items-center justify-center group shadow-md max-w-sm">
-                <FileVideo className="text-primary/40 w-12 h-12" />
-                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-3 flex items-center justify-between">
+                <FileVideo className="text-primary/40 w-10 h-10" />
+                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <FileVideo className="w-4 h-4 text-primary" />
                     <span className="text-xs text-white font-medium truncate">
@@ -427,320 +570,301 @@ export function MenuForm({
               </div>
             )}
           </div>
+
+          {/* Next button */}
+          <Button
+            type="button"
+            onClick={() => setStep(2)}
+            disabled={!step1Valid || !!uploadingType}
+            className="w-full font-semibold py-5 gap-2 transition-all duration-200"
+          >
+            Continue to Details
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
 
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <div className="relative">
-                  <Utensils className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        {/* ───────────────────────── STEP 2 ───────────────────────── */}
+        <div
+          className={`space-y-5 transition-all duration-300 ${step === 2 ? "block animate-in fade-in slide-in-from-right-4" : "hidden"}`}
+        >
+          {/* Categories */}
+          <FormField
+            control={form.control}
+            name="category_ids"
+            render={() => (
+              <FormItem>
+                <div className="mb-3 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                  <div>
+                    <FormLabel className="text-base text-accent font-semibold">
+                      Categories <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <div className="text-sm text-muted-foreground">
+                      Select up to 5 categories this item belongs to.
+                    </div>
+                  </div>
+                  <CategoryManager
+                    restaurantId={restaurantId}
+                    onCategoriesChange={fetchCategories}
+                  />
+                </div>
+
+                {availableCategories.length === 0 ? (
+                  <div className="p-6 bg-muted/20 border-2 border-dashed border-destructive/30 rounded-lg text-center">
+                    <Flame className="w-8 h-8 text-destructive/50 mx-auto mb-2" />
+                    <p className="text-destructive font-medium text-sm">
+                      No categories found!
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Please add a category first using the manage categories
+                      before you can assign items.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {availableCategories.map((category) => (
+                      <FormField
+                        key={category.id}
+                        control={form.control}
+                        name="category_ids"
+                        render={({ field }) => {
+                          const isChecked = field.value?.includes(category.id);
+                          const isDisabled =
+                            !isChecked && field.value?.length >= 5;
+                          return (
+                            <FormItem
+                              key={category.id}
+                              className={`flex flex-row items-center space-x-3 space-y-0 p-3 rounded-lg border transition-colors cursor-pointer ${
+                                isChecked
+                                  ? "bg-primary/5 border-primary/40 shadow-sm"
+                                  : "hover:bg-muted/30 border-transparent"
+                              } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                            >
+                              <FormControl>
+                                <Checkbox
+                                  checked={isChecked}
+                                  disabled={isDisabled}
+                                  onCheckedChange={(checked) => {
+                                    return checked
+                                      ? field.onChange([
+                                          ...field.value,
+                                          category.id,
+                                        ])
+                                      : field.onChange(
+                                          field.value?.filter(
+                                            (value: string) =>
+                                              value !== category.id,
+                                          ),
+                                        );
+                                  }}
+                                />
+                              </FormControl>
+                              <FormLabel
+                                className={`text-sm font-medium leading-none ${
+                                  isDisabled
+                                    ? "text-muted-foreground/50"
+                                    : "cursor-pointer"
+                                }`}
+                              >
+                                {category.name}
+                              </FormLabel>
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Price + Calories */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Price <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="pl-9"
+                        {...field}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="calories"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Calories</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Flame className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        placeholder="kCal"
+                        className="pl-9"
+                        {...field}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {/* Prep Time + Stock */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="prep_time_minutes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Prep Time</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        placeholder="Minutes"
+                        className="pl-9"
+                        {...field}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="stock_quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stock Qty</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Utensils className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        className="pl-9"
+                        {...field}
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {/* Dietary toggles */}
+          <div className="grid grid-cols-2 gap-3 p-4 border rounded-xl bg-muted/5">
+            {(
+              [
+                { name: "is_vegetarian", label: "Vegetarian" },
+                { name: "is_vegan", label: "Vegan" },
+                { name: "is_gluten_free", label: "Gluten Free" },
+                { name: "is_available", label: "Available" },
+              ] as const
+            ).map(({ name, label }) => (
+              <FormField
+                key={name}
+                control={form.control}
+                name={name}
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between space-y-0">
+                    <FormLabel className="text-sm">{label}</FormLabel>
+                    <FormControl>
+                      <Switch
+                        checked={field.value as boolean}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            ))}
+          </div>
+
+          {/* Allergens */}
+          <FormField
+            control={form.control}
+            name="allergens"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Allergens (comma separated)</FormLabel>
+                <FormControl>
                   <Input
-                    placeholder="Dish Name (e.g., Truffle Pasta)"
-                    className="pl-9"
+                    placeholder="Peanuts, Shellfish, Dairy..."
                     {...field}
                   />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Describe the flavors, ingredients..."
-                  className="resize-none"
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="category_ids"
-          render={() => (
-            <FormItem>
-              <div className="mb-4">
-                <FormLabel className="text-base">Categories</FormLabel>
-                <div className="text-sm text-muted-foreground">
-                  Select the categories this item belongs to.
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {availableCategories.map((category) => (
-                  <FormField
-                    key={category.id}
-                    control={form.control}
-                    name="category_ids"
-                    render={({ field }) => {
-                      return (
-                        <FormItem
-                          key={category.id}
-                          className="flex flex-row items-start space-x-3 space-y-0"
-                        >
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value?.includes(category.id)}
-                              onCheckedChange={(checked) => {
-                                return checked
-                                  ? field.onChange([
-                                      ...field.value,
-                                      category.id,
-                                    ])
-                                  : field.onChange(
-                                      field.value?.filter(
-                                        (value: string) =>
-                                          value !== category.id,
-                                      ),
-                                    );
-                              }}
-                            />
-                          </FormControl>
-                          <FormLabel className="text-sm font-normal">
-                            {category.name}
-                          </FormLabel>
-                        </FormItem>
-                      );
-                    }}
+          {/* Tags */}
+          <FormField
+            control={form.control}
+            name="tags"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tags (comma separated)</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="Spicy, Popular, Chef Choice..."
+                    {...field}
                   />
-                ))}
-              </div>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="price"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Price</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      className="pl-9"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="calories"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Calories</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Flame className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      placeholder="kCal"
-                      className="pl-9"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* Navigation Buttons */}
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep(1)}
+              className="gap-2 flex-shrink-0"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={!step2Valid || !!uploadingType}
+              className="flex-1 font-semibold py-5 gap-2 bg-primary/90 hover:bg-primary text-primary-foreground shadow-lg transition-all duration-200 active:scale-[0.98]"
+            >
+              {form.formState.isSubmitting || submitCooldown ? (
+                <Loader2 className="animate-spin w-4 h-4" />
+              ) : (
+                <Plus className="w-4 h-4" />
+              )}
+              {initialData ? "Update Menu" : "Add Menu"}
+            </Button>
+          </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="prep_time_minutes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Prep Time</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      placeholder="Minutes"
-                      className="pl-9"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="stock_quantity"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Stock Quantity</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <Utensils className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      className="pl-9"
-                      {...field}
-                    />
-                  </div>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 p-4 border rounded-xl bg-muted/5">
-          <FormField
-            control={form.control}
-            name="is_vegetarian"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0">
-                <FormLabel>Vegetarian</FormLabel>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="is_vegan"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0">
-                <FormLabel>Vegan</FormLabel>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="is_gluten_free"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0">
-                <FormLabel>Gluten Free</FormLabel>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="is_available"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between space-y-0">
-                <FormLabel>Available</FormLabel>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <FormField
-          control={form.control}
-          name="allergens"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Allergens (comma separated)</FormLabel>
-              <FormControl>
-                <Input placeholder="Peanuts, Shellfish, Dairy..." {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="tags"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tags (comma separated)</FormLabel>
-              <FormControl>
-                <Input
-                  placeholder="Spicy, Popular, Chef Choice..."
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Button
-          type="submit"
-          disabled={form.formState.isSubmitting || !!uploadingType}
-          className="w-full bg-primary/90 hover:bg-primary text-primary-foreground font-semibold py-6 shadow-lg transition-transform active:scale-[0.98]"
-        >
-          {form.formState.isSubmitting ? (
-            <Loader2 className="animate-spin mr-2" />
-          ) : (
-            <Plus className="mr-2 h-4 w-4" />
-          )}
-          {initialData ? "Update Menu" : "Add Menu"}
-        </Button>
       </form>
     </Form>
-  );
-}
-
-function Plus(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M5 12h14" />
-      <path d="M12 5v14" />
-    </svg>
   );
 }

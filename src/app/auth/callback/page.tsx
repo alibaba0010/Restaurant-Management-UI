@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { Loader2 } from "lucide-react";
+import Header from "@/components/layout/header";
+import Footer from "@/components/layout/footer";
 
 function CallbackContent() {
   const router = useRouter();
@@ -61,8 +63,8 @@ function CallbackContent() {
           const errData = await res.json().catch(() => ({}));
           router.push(
             `/signin?error=${encodeURIComponent(
-              errData.message || "Verification failed"
-            )}`
+              errData.message || "Verification failed",
+            )}`,
           );
         }
       } catch (error) {
@@ -75,7 +77,7 @@ function CallbackContent() {
   }, [router, searchParams, setUser]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex items-center justify-center p-8">
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-muted-foreground">Verifying login...</p>
@@ -86,14 +88,20 @@ function CallbackContent() {
 
 export default function CallbackPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      }
-    >
-      <CallbackContent />
-    </Suspense>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-grow flex items-center justify-center">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center px-4">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          }
+        >
+          <CallbackContent />
+        </Suspense>
+      </main>
+      <Footer />
+    </div>
   );
 }

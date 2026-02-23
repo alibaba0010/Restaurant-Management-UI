@@ -21,6 +21,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import Header from "@/components/layout/header";
+import Footer from "@/components/layout/footer";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function HealthPage() {
   const [health, setHealth] = useState<HealthCheckResponse | null>(null);
@@ -65,85 +68,90 @@ export default function HealthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-slate-900">System Status</h1>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={fetchHealth}
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
-          </Button>
-        </div>
-
-        <Card className="shadow-lg border-none">
-          <CardHeader className="bg-white rounded-t-xl border-b border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Main API Service</CardTitle>
-                <CardDescription>Real-time connectivity status</CardDescription>
-              </div>
-              {loading && !health ? (
-                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <main className="flex-grow bg-slate-50 flex flex-col items-center justify-center p-4 py-12">
+        <div className="max-w-md w-full space-y-4">
+          <BackButton label="Back to Home" href="/" />
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold text-slate-900">System Status</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={fetchHealth}
+              disabled={loading}
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                getStatusBadge(health?.status || "unhealthy")
+                "Refresh"
               )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white rounded-md shadow-sm">
-                    <Database className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">PostgreSQL</p>
-                    <p className="text-xs text-slate-500">Core Data Storage</p>
-                  </div>
-                </div>
-                {getStatusBadge(health?.services?.postgres || "offline")}
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white rounded-md shadow-sm">
-                    <Zap className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Redis</p>
-                    <p className="text-xs text-slate-500">Cache & Sessions</p>
-                  </div>
-                </div>
-                {getStatusBadge(health?.services?.redis || "offline")}
-              </div>
-            </div>
-
-            {health?.timestamp && (
-              <p className="text-[10px] text-center text-slate-400">
-                Last updated: {new Date(health.timestamp).toLocaleString()}
-              </p>
-            )}
-
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 text-xs text-center">
-                {error}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-center">
-          <Link href="/">
-            <Button variant="link" className="text-slate-500 text-sm">
-              <Server className="w-3 h-3 mr-2" /> Back to Application
             </Button>
-          </Link>
+          </div>
+
+          <Card className="shadow-lg border-none">
+            <CardHeader className="bg-white rounded-t-xl border-b border-slate-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Main API Service</CardTitle>
+                  <CardDescription>
+                    Real-time connectivity status
+                  </CardDescription>
+                </div>
+                {loading && !health ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                ) : (
+                  getStatusBadge(health?.status || "unhealthy")
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-md shadow-sm">
+                      <Database className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">PostgreSQL</p>
+                      <p className="text-xs text-slate-500">
+                        Core Data Storage
+                      </p>
+                    </div>
+                  </div>
+                  {getStatusBadge(health?.services?.postgres || "offline")}
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-md shadow-sm">
+                      <Zap className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Redis</p>
+                      <p className="text-xs text-slate-500">Cache & Sessions</p>
+                    </div>
+                  </div>
+                  {getStatusBadge(health?.services?.redis || "offline")}
+                </div>
+              </div>
+
+              {health?.timestamp && (
+                <p className="text-[10px] text-center text-slate-400">
+                  Last updated: {new Date(health.timestamp).toLocaleString()}
+                </p>
+              )}
+
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 text-xs text-center">
+                  {error}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      </main>
+      <Footer />
     </div>
   );
 }

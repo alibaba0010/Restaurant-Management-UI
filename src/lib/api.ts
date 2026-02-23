@@ -210,12 +210,40 @@ async function fetchClient<T = any>(
         );
       }
 
-      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      let res = await fetch(`${API_BASE_URL}${endpoint}`, {
         headers,
         credentials: "include",
         signal: controller.signal,
         ...rest,
       });
+
+      // Handle 401 Unauthorized - Attempt token refresh once
+      if (res.status === 401 && attempt === 0) {
+        console.log(
+          `[API] 401 Detected for ${endpoint}. Attempting refresh...`,
+        );
+        try {
+          if (!refreshPromise) {
+            refreshPromise = refreshSession().finally(() => {
+              refreshPromise = null;
+            });
+          }
+          const refresh = await refreshPromise;
+          if (refresh.success && refresh.token) {
+            useAuthStore.getState().setAccessToken(refresh.token);
+            // Update authorization header and retry
+            headers["Authorization"] = `Bearer ${refresh.token}`;
+            res = await fetch(`${API_BASE_URL}${endpoint}`, {
+              headers,
+              credentials: "include",
+              signal: controller.signal,
+              ...rest,
+            });
+          }
+        } catch (refreshErr) {
+          console.error("[API] Refresh during 401 failed", refreshErr);
+        }
+      }
 
       // Clear timeout if successful
       clearTimeout(timeoutId);
@@ -585,6 +613,9 @@ async function uploadMultipart(
   // 4. Divide the file size to chunks of 5MB
   console.log(`[UploadDebug] Total chunks: ${totalChunks}`);
 
+  // Get the auth token for the XHR requests
+  const token = useAuthStore.getState().accessToken;
+
   try {
     // 5. Initiate Multipart Upload and get upload id and unique key
     console.log("[UploadDebug] Initiating multipart upload...");
@@ -600,7 +631,7 @@ async function uploadMultipart(
     const completedParts: { part_number: number; etag: string }[] = [];
     let uploadedBytes = 0;
 
-    // 2. Upload chunks
+    // 2. Upload chunks via server proxy (no browser→S3 CORS preflight)
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
@@ -611,18 +642,13 @@ async function uploadMultipart(
         `[UploadDebug] Processing chunk ${partNumber}/${totalChunks}`,
       );
 
-      // Get part presigned URL for this part
-      const { data: presignedUrl } = await getPartPresignedURL({
+      // Upload chunk through server proxy — avoids browser→S3 CORS
+      const { etag } = await uploadPartViaServer(
         key,
         upload_id,
-        part_number: partNumber,
-      });
-
-      // Upload chunk
-      const etag = await uploadToPresignedURL(
-        presignedUrl,
+        partNumber,
         chunk,
-        file.type,
+        token,
         (ratio) => {
           if (onProgress) {
             const currentChunkLoaded = ratio * chunk.size;
@@ -660,6 +686,80 @@ async function uploadMultipart(
     console.error("[UploadDebug] Multipart upload failed", error);
     throw error;
   }
+}
+
+/**
+ * Uploads a single binary chunk to the server proxy endpoint (POST /menus/multipart/upload-part).
+ * The server then forwards it to S3 via the AWS SDK — no browser→S3 CORS preflight.
+ * Returns the ETag from S3 needed to complete the multipart upload.
+ */
+function uploadPartViaServer(
+  key: string,
+  uploadId: string,
+  partNumber: number,
+  chunk: Blob,
+  authToken: string | null,
+  onProgress?: (ratio: number) => void,
+): Promise<{ etag: string }> {
+  return new Promise((resolve, reject) => {
+    const query = new URLSearchParams({
+      key,
+      upload_id: uploadId,
+      part_number: partNumber.toString(),
+    });
+    const url = `${API_BASE_URL}/menus/multipart/upload-part?${query.toString()}`;
+
+    console.log(
+      `[UploadDebug] POSTing chunk ${partNumber} to server proxy: ${url}`,
+    );
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    // Set auth header
+    if (authToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${authToken}`);
+    }
+    // Content-Length is set by the browser automatically for binary data
+    xhr.withCredentials = true;
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(event.loaded / event.total);
+      }
+    };
+
+    xhr.onload = () => {
+      console.log(`[UploadDebug] Server proxy response: ${xhr.status}`);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const json = JSON.parse(xhr.responseText);
+          // Server returns { title, data: { etag, part_number } }
+          const etag = json?.data?.etag || "";
+          console.log(`[UploadDebug] ETag from server: ${etag}`);
+          resolve({ etag });
+        } catch (e) {
+          reject(new Error("Failed to parse server response"));
+        }
+      } else {
+        console.error(
+          `[UploadDebug] Server proxy upload failed: ${xhr.status} ${xhr.responseText}`,
+        );
+        reject(
+          new Error(
+            `Part upload failed with status ${xhr.status}: ${xhr.responseText}`,
+          ),
+        );
+      }
+    };
+
+    xhr.onerror = () => {
+      console.error("[UploadDebug] Network error during server proxy upload");
+      reject(new Error("Network error during part upload"));
+    };
+
+    // Send the raw binary chunk as the POST body
+    xhr.send(chunk);
+  });
 }
 // 4. Function to imitiate Chunk Upload to AWS S3 returns upload id and key
 async function initiateMultipartUpload(data: {
@@ -708,6 +808,7 @@ export async function getMenus(params: {
   page_size?: number;
   q?: string;
   restaurant_id?: string;
+  category_id?: string;
   min_price?: number;
   max_price?: number;
   is_available?: boolean;
@@ -766,4 +867,24 @@ export async function getMenuCategories(restaurantId: string) {
   return fetchClient<MenuCategory[]>(
     `/categories?restaurant_id=${restaurantId}`,
   );
+}
+
+export async function createMenuCategory(data: any) {
+  return fetchClient(`/categories`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateMenuCategory(id: string, data: any) {
+  return fetchClient(`/categories/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteMenuCategory(id: string) {
+  return fetchClient(`/categories/${id}`, {
+    method: "DELETE",
+  });
 }

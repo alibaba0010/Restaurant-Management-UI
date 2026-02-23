@@ -1,39 +1,11 @@
 "use client";
 
-// Mirrors the Go MenuResponse DTO (price is a decimal string from shopspring/decimal)
-type Category = {
-  id: string;
-  name: string;
-};
-
-type Menu = {
-  id: string;
-  name: string;
-  description?: string;
-  /** shopspring/decimal serialises to a JSON string, e.g. "12.50" */
-  price: string;
-  image_urls?: string[];
-  video_url?: string;
-  restaurant_id: string;
-  categories?: Category[];
-  tags?: string[];
-  is_available: boolean;
-  prep_time_minutes?: number;
-  calories?: number;
-  stock_quantity: number;
-  is_vegetarian: boolean;
-  is_vegan: boolean;
-  is_gluten_free: boolean;
-  allergens?: string[];
-  created_at: string;
-  updated_at: string;
-};
-
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Header from "../../components/layout/header";
 import Footer from "../../components/layout/footer";
 import { getMenus } from "../../lib/api";
+import { Menu } from "../../lib/types";
 import {
   Card,
   CardContent,
@@ -50,11 +22,15 @@ import {
   Flame,
   ArrowLeft,
   SlidersHorizontal,
+  Plus,
+  Minus,
+  ShoppingCart,
 } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
 import { Badge } from "../../components/ui/badge";
 import { BackButton } from "../../components/ui/back-button";
+import { useCartStore } from "../../lib/cart-store";
+import { useToast } from "../../hooks/use-toast";
 
 export default function MenusPage() {
   const router = useRouter();
@@ -69,6 +45,42 @@ export default function MenusPage() {
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const addItem = useCartStore((state) => state.addItem);
+  const { toast } = useToast();
+
+  const handleQuantityChange = (menu: Menu, delta: number) => {
+    setQuantities((prev) => {
+      const current = prev[menu.id] || 1;
+      const next = current + delta;
+
+      if (next > menu.stock_quantity) {
+        toast({
+          title: "Limit reached",
+          description: `Only ${menu.stock_quantity} units available.`,
+          variant: "destructive",
+        });
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [menu.id]: Math.max(1, next),
+      };
+    });
+  };
+
+  const handleAddToCart = (e: React.MouseEvent, menu: Menu) => {
+    e.stopPropagation();
+    const qty = quantities[menu.id] || 1;
+    addItem(menu, qty);
+    toast({
+      title: "Added to cart",
+      description: `${qty}x ${menu.name} added successfully.`,
+    });
+    // Reset quantity for this item
+    setQuantities((prev) => ({ ...prev, [menu.id]: 1 }));
+  };
 
   async function fetchMenus(isLoadMore = false) {
     if (isLoadMore) {
@@ -253,15 +265,19 @@ export default function MenusPage() {
                       </div>
                     )}
                     <Badge className="absolute top-2 right-2 bg-primary/90 hover:bg-primary">
-                      ${parseFloat(parseFloat(menu.price)).toFixed(2)}
+                      ${parseFloat(menu.price).toFixed(2)}
                     </Badge>
                   </div>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xl font-headline group-hover:text-primary transition-colors line-clamp-1">
                       {menu.name}
                     </CardTitle>
-                    <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                      {menu.description}
+                    <CardDescription className="text-sm text-primary/80 font-medium">
+                      {menu.description
+                        ? menu.description.length > 15
+                          ? `${menu.description.slice(0, 15)}...`
+                          : menu.description
+                        : "No description"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-0 space-y-4">
@@ -277,17 +293,47 @@ export default function MenusPage() {
                         </div>
                       )}
                     </div>
-                    <Button
-                      className="w-full bg-accent hover:bg-accent/90"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(
-                          `/dashboard/restaurants/${menu.restaurant_id}`,
-                        );
-                      }}
-                    >
-                      View Restaurant
-                    </Button>
+                    <div className="flex items-center justify-between gap-2 pt-2">
+                      <div
+                        className="flex items-center border rounded-md bg-muted/50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-none hover:bg-background"
+                          onClick={() => handleQuantityChange(menu, -1)}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </Button>
+                        <span className="w-8 text-center text-sm font-medium">
+                          {quantities[menu.id] || 1}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-8 w-8 rounded-none hover:bg-background ${
+                            (quantities[menu.id] || 1) >= menu.stock_quantity
+                              ? "opacity-30 cursor-not-allowed"
+                              : ""
+                          }`}
+                          onClick={() => handleQuantityChange(menu, 1)}
+                          disabled={
+                            (quantities[menu.id] || 1) >= menu.stock_quantity
+                          }
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="flex-grow gap-2 bg-accent hover:bg-accent/90 shadow-sm"
+                        onClick={(e) => handleAddToCart(e, menu)}
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        Add to Cart
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

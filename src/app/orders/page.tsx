@@ -18,6 +18,7 @@ import { format } from "date-fns";
 import { Loader2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { BackButton } from "@/components/ui/back-button";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -57,6 +58,7 @@ export default function OrdersPage() {
     <div className="flex flex-col min-h-screen">
       <Header />
       <main className="flex-grow container mx-auto px-4 py-8">
+        <BackButton label="Back to Dashboard" href="/dashboard" />
         <h1 className="text-3xl font-headline font-bold mb-8 text-accent">
           Your Orders
         </h1>

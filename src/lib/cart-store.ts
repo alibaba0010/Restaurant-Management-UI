@@ -9,7 +9,7 @@ export interface CartItem extends Menu {
 interface CartState {
   items: CartItem[];
   restaurantId: string | null; // Start with one restaurant constraint for simplicity
-  addItem: (item: Menu) => void;
+  addItem: (item: Menu, quantity?: number) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, info: "increment" | "decrement") => void;
   clearCart: () => void;
@@ -23,17 +23,11 @@ export const useCartStore = create<CartState>()(
       items: [],
       restaurantId: null,
 
-      addItem: (item) => {
+      addItem: (item, quantity = 1) => {
         const { items, restaurantId } = get();
 
-        // If cart has items from another restaurant, confirm reset (simplified: just error or reset)
-        // For now, if different restaurant, we'll replace the cart or warn.
-        // Let's implement auto-reset for better UX in this MVP, or stick to same restaurant logic.
+        // Enforce single restaurant rule
         if (restaurantId && restaurantId !== item.restaurant_id) {
-          // Optional: throw error or handle UI confirmation.
-          // For now, we will allow mixed cart but the backend might reject Order.
-          // Actually, best practice is to clear cart if restaurant changes or support multi-restaurant orders (complex).
-          // Let's enforce single restaurant for simplicity.
           if (
             !confirm(
               "Adding items from a different restaurant will clear your current cart. Continue?",
@@ -48,14 +42,23 @@ export const useCartStore = create<CartState>()(
         const existingItem = currentItems.find((i) => i.id === item.id);
 
         if (existingItem) {
+          const newQuantity = existingItem.quantity + quantity;
+          if (newQuantity > item.stock_quantity) {
+            alert(`Sorry, only ${item.stock_quantity} units available.`);
+            return;
+          }
           set({
             items: currentItems.map((i) =>
-              i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i,
+              i.id === item.id ? { ...i, quantity: newQuantity } : i,
             ),
           });
         } else {
+          if (quantity > item.stock_quantity) {
+            alert(`Sorry, only ${item.stock_quantity} units available.`);
+            return;
+          }
           set({
-            items: [...currentItems, { ...item, quantity: 1 }],
+            items: [...currentItems, { ...item, quantity }],
             restaurantId: item.restaurant_id,
           });
         }
@@ -76,8 +79,16 @@ export const useCartStore = create<CartState>()(
           const newItems = state.items
             .map((i) => {
               if (i.id === itemId) {
-                const newQuantity =
-                  info === "increment" ? i.quantity + 1 : i.quantity - 1;
+                let newQuantity = i.quantity;
+                if (info === "increment") {
+                  if (i.quantity < i.stock_quantity) {
+                    newQuantity = i.quantity + 1;
+                  } else {
+                    alert(`Sorry, only ${i.stock_quantity} units available.`);
+                  }
+                } else {
+                  newQuantity = i.quantity - 1;
+                }
                 return { ...i, quantity: Math.max(0, newQuantity) };
               }
               return i;
@@ -96,7 +107,10 @@ export const useCartStore = create<CartState>()(
       totalItems: () =>
         get().items.reduce((acc, item) => acc + item.quantity, 0),
       totalPrice: () =>
-        get().items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+        get().items.reduce(
+          (acc, item) => acc + Number(item.price) * item.quantity,
+          0,
+        ),
     }),
     {
       name: "cart-storage",
