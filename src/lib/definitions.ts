@@ -98,6 +98,17 @@ export const RestaurantFormSchema = z.object({
   takeaway_available: z.boolean().default(false),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
+  account_number: z
+    .string()
+    .min(10, "Account number must be at least 10 digits")
+    .max(10)
+    .optional()
+    .or(z.literal("")),
+  bank_name: z
+    .string()
+    .min(1, "Bank name is required")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const MenuFormSchema = z.object({
@@ -162,6 +173,8 @@ export interface Restaurant {
   rating?: number;
   latitude?: number;
   longitude?: number;
+  account_number?: string;
+  bank_name?: string;
   created_at: string;
   updated_at: string;
 }

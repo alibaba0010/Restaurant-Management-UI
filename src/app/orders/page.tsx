@@ -43,7 +43,7 @@ export default function OrdersPage() {
     switch (status) {
       case OrderStatus.PENDING:
         return "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20";
-      case OrderStatus.PROCESSING:
+      case OrderStatus.PREPARING:
         return "bg-blue-500/10 text-blue-500 hover:bg-blue-500/20";
       case OrderStatus.COMPLETED:
         return "bg-green-500/10 text-green-500 hover:bg-green-500/20";
@@ -94,8 +94,12 @@ export default function OrdersPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      ${order.total_amount.toFixed(2)}
-                      {/* Note: backend might return total_amount as 0 if not calculated, check items sum if needed */}
+                      <div>${Number(order.total_amount).toFixed(2)}</div>
+                      {order.service_charge > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          incl. {order.service_charge_percent} service charge
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       {/* TODO: Add View Details link */}

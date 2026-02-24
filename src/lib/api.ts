@@ -852,6 +852,24 @@ export async function getOrders() {
   });
 }
 
+export async function initiatePayment(data: {
+  order_id: string;
+  provider: string;
+  callback_url: string;
+}) {
+  return fetchClient("/payments/initiate", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function verifyPayment(reference: string) {
+  return fetchClient(`/payments/verify?reference=${reference}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+}
+
 export async function getOrderById(id: string) {
   return fetchClient(`/orders/${id}`, {
     cache: "no-store",

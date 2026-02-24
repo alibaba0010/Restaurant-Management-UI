@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/cart-store";
 import { useAuthStore } from "@/lib/store";
-import { createOrder } from "@/lib/api";
+import { createOrder, initiatePayment } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -21,6 +21,8 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "../../hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function CartSheet() {
   const router = useRouter();
@@ -36,6 +38,10 @@ export function CartSheet() {
   const { user, isAuthenticated } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
   const [address, setAddress] = useState(user?.address || "");
+  const [street, setStreet] = useState("");
+  const [city, setCity] = useState("");
+  const [country, setCountry] = useState("Nigeria");
+  const [postCode, setPostCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const total = totalPrice();
@@ -48,10 +54,13 @@ export function CartSheet() {
       return;
     }
 
-    if (!address.trim()) {
+    const finalAddress =
+      user?.address || `${street}, ${city}, ${country} ${postCode}`.trim();
+
+    if (!finalAddress || finalAddress.replace(/,/g, "").trim().length < 5) {
       toast({
         title: "Address Required",
-        description: "Please enter a delivery address.",
+        description: "Please provide a complete delivery address.",
         variant: "destructive",
       });
       return;
@@ -63,23 +72,36 @@ export function CartSheet() {
       setIsSubmitting(true);
       const orderData = {
         restaurant_id: restaurantId,
-        delivery_address: address,
+        delivery_address: finalAddress,
         items: items.map((item) => ({
           menu_id: item.id,
           quantity: item.quantity,
         })),
       };
 
-      await createOrder(orderData);
+      const res = await createOrder(orderData);
+      const order = res.data;
 
       toast({
-        title: "Order Placed!",
-        description: "Your order has been successfully placed.",
+        title: "Order Placed",
+        description: "Redirecting to secure payment...",
+      });
+
+      // Initiate Payment
+      const payRes = await initiatePayment({
+        order_id: order.id,
+        provider: "paystack", // Defaulting to paystack for now
+        callback_url: `${window.location.origin}/orders/${order.id}/verify`,
       });
 
       clearCart();
       setIsOpen(false);
-      router.push("/orders"); // We will create this page next
+
+      if (payRes.data?.authorization_url) {
+        window.location.href = payRes.data.authorization_url;
+      } else {
+        router.push(`/orders/${order.id}`);
+      }
     } catch (error) {
       console.error("Checkout failed", error);
       toast({
@@ -188,27 +210,101 @@ export function CartSheet() {
                   <span>${total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Delivery</span>
-                  <span>$5.00</span>
+                  <span className="text-muted-foreground">
+                    Service Charge ({total < 100 ? "10%" : "5%"})
+                  </span>
+                  <span>
+                    ${(total < 100 ? total * 0.1 : total * 0.05).toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between font-medium text-lg pt-2 border-t">
                   <span>Total</span>
-                  <span>${(total + 5).toFixed(2)}</span>
+                  <span>
+                    $
+                    {(
+                      total + (total < 100 ? total * 0.1 : total * 0.05)
+                    ).toFixed(2)}
+                  </span>
                 </div>
               </div>
 
               {isAuthenticated ? (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Delivery Address
-                  </label>
-                  <Textarea
-                    placeholder="Enter your delivery address..."
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    rows={2}
-                    className="resize-none"
-                  />
+                <div className="space-y-4 pt-2">
+                  <h4 className="text-sm font-semibold text-accent">
+                    Delivery Details
+                  </h4>
+
+                  {user?.address ? (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Saved Address
+                      </Label>
+                      <div className="p-3 rounded-lg border bg-secondary/20 text-sm">
+                        {user.address}
+                      </div>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs text-primary"
+                        onClick={() => router.push("/settings")}
+                      >
+                        Change Address
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="street" className="text-xs">
+                          Street Address
+                        </Label>
+                        <Input
+                          id="street"
+                          placeholder="House number and street name"
+                          value={street}
+                          onChange={(e) => setStreet(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="city" className="text-xs">
+                            City
+                          </Label>
+                          <Input
+                            id="city"
+                            placeholder="Lagos"
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="postCode" className="text-xs">
+                            Postal Code (Optional)
+                          </Label>
+                          <Input
+                            id="postCode"
+                            placeholder="100001"
+                            value={postCode}
+                            onChange={(e) => setPostCode(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="country" className="text-xs">
+                          Country
+                        </Label>
+                        <Input
+                          id="country"
+                          placeholder="Nigeria"
+                          value={country}
+                          onChange={(e) => setCountry(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="bg-muted p-3 rounded-md text-sm text-center text-muted-foreground">

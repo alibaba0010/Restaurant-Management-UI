@@ -48,6 +48,8 @@ export async function createRestaurantAction(
     longitude: formData.get("longitude")
       ? Number(formData.get("longitude"))
       : undefined,
+    account_number: formData.get("account_number") || undefined,
+    bank_name: formData.get("bank_name") || undefined,
   });
 
   if (!validatedFields.success) {

@@ -167,7 +167,11 @@ export interface Order {
   id: string;
   user_id: string;
   restaurant_id: string;
+  subtotal: number;
+  service_charge: number;
+  service_charge_percent: string;
   total_amount: number;
+  currency: string;
   status: OrderStatus;
   order_type: OrderType;
   payment_status: PaymentStatus;

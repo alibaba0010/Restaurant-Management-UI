@@ -202,6 +202,34 @@ export default function NewRestaurantPage() {
                   </div>
                 </div>
 
+                <div className="pt-4 border-t">
+                  <h3 className="text-lg font-semibold mb-4 text-accent">
+                    Payout Details
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="bank_name">Bank Name</Label>
+                      <Input
+                        id="bank_name"
+                        name="bank_name"
+                        placeholder="e.g. GTBank"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="account_number">Account Number</Label>
+                      <Input
+                        id="account_number"
+                        name="account_number"
+                        placeholder="10 digits"
+                        maxLength={10}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    This information is used to settle your earnings.
+                  </p>
+                </div>
+
                 {state.message && (
                   <p className="text-sm text-destructive">{state.message}</p>
                 )}
