@@ -38,11 +38,13 @@ import {
   ChevronLeft,
   CheckCircle2,
   Plus,
+  Wand2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { handleApiError } from "@/lib/utils";
 import { CategoryManager } from "./category-manager";
+import { generateMenuDescription } from "@/app/actions/ai";
 
 const menuSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -93,6 +95,7 @@ export function MenuForm({
     MenuCategory[]
   >([]);
   const [submitCooldown, setSubmitCooldown] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const { toast } = useToast();
 
   const fetchCategories = async () => {
@@ -225,6 +228,44 @@ export function MenuForm({
       await processFileUpload(file, type);
     }
     e.target.value = "";
+  };
+
+  const handleAiSuggestion = async () => {
+    const name = form.getValues("name");
+    if (!name || name.length < 2) {
+      toast({
+        title: "Name required",
+        description: "Please enter a dish name first to get an AI suggestion.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    try {
+      const result = await generateMenuDescription(name);
+      if (result.success && result.data) {
+        form.setValue("description", result.data.description, {
+          shouldValidate: true,
+          shouldDirty: true,
+        });
+        toast({
+          title: "Suggestion generated!",
+          description:
+            "Description has been updated with an AI-crafted suggestion.",
+        });
+      } else {
+        throw new Error(result.message || "Failed to generate suggestion");
+      }
+    } catch (error: any) {
+      toast({
+        title: "AI Generation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingDescription(false);
+    }
   };
 
   // ——— Submit ———
@@ -370,7 +411,24 @@ export function MenuForm({
             name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Description</FormLabel>
+                <div className="flex items-center justify-between">
+                  <FormLabel>Description</FormLabel>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-[10px] text-primary hover:text-primary/80 hover:bg-primary/5 gap-1.5 font-bold px-2"
+                    onClick={handleAiSuggestion}
+                    disabled={isGeneratingDescription || watchedName.length < 2}
+                  >
+                    {isGeneratingDescription ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-3 w-3" />
+                    )}
+                    GET AI SUGGESTION
+                  </Button>
+                </div>
                 <FormControl>
                   <Textarea
                     placeholder="Describe the flavors, ingredients..."

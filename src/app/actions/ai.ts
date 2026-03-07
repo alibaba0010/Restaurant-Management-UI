@@ -170,3 +170,33 @@ Return ONLY a JSON array. No markdown. No extra text:
     };
   }
 }
+
+export async function generateMenuDescription(menuName: string) {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("Gemini API key is not configured.");
+
+    const prompt = `You are an executive head chef with 20 years of experience.
+The dish is named "${menuName}".
+Write a mouth-watering menu description for this dish (max 200 characters).
+Follow these guidelines:
+- Write it exactly as a seasoned chef would describe it on a premium menu.
+- Name the key ingredients or signature cooking technique.
+- Describe the taste profile (e.g., bold, smoky, fermented, slow-cooked, zesty).
+- Mention the texture or how it is served.
+- Keep it vivid, specific, and professional — avoid generic filler phrases like "delicious dish" or "a variety of flavors".
+
+Return ONLY a JSON array with one object. No markdown. No extra text:
+[{"name":"${menuName}", "description":"..."}]`;
+
+    const data = await callGemini(prompt, apiKey);
+    return { success: true, data: data[0] };
+  } catch (error: any) {
+    console.error("Error generating menu description:", error);
+    return {
+      success: false,
+      data: null,
+      message: error.message,
+    };
+  }
+}
