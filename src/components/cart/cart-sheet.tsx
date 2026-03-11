@@ -170,7 +170,7 @@ export function CartSheet() {
                         {item.name}
                       </h4>
                       <p className="text-sm text-primary font-medium">
-                        ${Number(item.price).toFixed(2)}
+                        NGN {Number(item.price).toFixed(2)}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -230,20 +230,20 @@ export function CartSheet() {
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>NGN {total.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
                     Service Charge ({total < 100 ? "10%" : "5%"})
                   </span>
                   <span>
-                    ${(total < 100 ? total * 0.1 : total * 0.05).toFixed(2)}
+                    NGN {(total < 100 ? total * 0.1 : total * 0.05).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between font-medium text-lg pt-2 border-t">
                   <span>Total</span>
                   <span>
-                    $
+                    NGN{" "}
                     {(
                       total + (total < 100 ? total * 0.1 : total * 0.05)
                     ).toFixed(2)}
@@ -259,20 +259,22 @@ export function CartSheet() {
 
                   {user?.address ? (
                     <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                        Saved Address
-                      </Label>
+                       <div className="flex justify-between items-center mb-1">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                          Saved Address
+                        </Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-1 text-[10px] text-primary hover:bg-primary/5 uppercase font-bold"
+                          onClick={() => router.push("/settings")}
+                        >
+                          Edit Address
+                        </Button>
+                      </div>
                       <div className="p-3 rounded-lg border bg-secondary/20 text-sm">
                         {user.address}
                       </div>
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="h-auto p-0 text-xs text-primary"
-                        onClick={() => router.push("/settings")}
-                      >
-                        Change Address
-                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-3">

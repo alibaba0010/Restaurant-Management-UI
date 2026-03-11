@@ -27,7 +27,7 @@ export default function OrderVerifyPage({
     "verifying",
   );
   const [message, setMessage] = useState("We are verifying your payment...");
-  const reference = searchParams.get("reference");
+  const reference = searchParams.get("reference") || searchParams.get("tx_ref");
 
   useEffect(() => {
     if (!reference) {

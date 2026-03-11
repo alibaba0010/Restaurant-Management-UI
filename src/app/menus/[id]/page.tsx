@@ -306,11 +306,9 @@ export default function MenuDetailsPage({
                           {c.name}
                         </Badge>
                       ))}
-                      {menu.stock_quantity < 10 && (
-                        <Badge variant="destructive" className="animate-pulse">
-                          Low Stock: {menu.stock_quantity} left
-                        </Badge>
-                      )}
+                      <Badge variant={menu.stock_quantity <= 5 ? "destructive" : "secondary"} className={menu.stock_quantity <= 5 ? "animate-pulse" : "bg-primary/5 text-primary border-primary/10 hover:bg-primary/10"}>
+                        {menu.stock_quantity > 0 ? `${menu.stock_quantity} left` : 'Out of stock'}
+                      </Badge>
                     </div>
                     <h1 className="text-4xl md:text-5xl font-bold font-headline tracking-tight text-accent">
                       {menu.name}

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthStore } from "@/lib/store";
 
 const ORDER_STATUS_CONFIG: Record<
   OrderStatus,
@@ -137,14 +138,14 @@ const PAYMENT_PROVIDERS = [
     id: "flutterwave",
     name: "Flutterwave",
     description: "Secure payment via Flutterwave checkout",
-    logo: "https://flutterwave.com/images/logo/logo-primary.svg",
+    logo: "https://upload.wikimedia.org/wikipedia/commons/0/00/Flutterwave_Logo.png",
     script: "https://checkout.flutterwave.com/v3.js",
   },
   {
     id: "monnify",
     name: "Monnify",
     description: "Express payout via Monnify",
-    logo: "https://monnify.com/assets/images/logo.png",
+    logo: "https://raw.githubusercontent.com/team-monnify/monnify-sdk-web/master/monnify-logo.png",
     script: "https://sdk.monnify.com/v1/sdk.js",
   },
 ];
@@ -161,11 +162,12 @@ export default function OrderDetailPage({
   const [loading, setLoading] = useState(true);
   const [payLoading, setPayLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState("paystack");
+  const { user } = useAuthStore();
 
-  // Load scripts for all providers
-  useExternalScript("https://js.paystack.co/v1/inline.js");
-  useExternalScript("https://checkout.flutterwave.com/v3.js");
-  useExternalScript("https://sdk.monnify.com/v1/sdk.js");
+  // Load scripts for all providers and track status
+  const paystackStatus = useExternalScript("https://js.paystack.co/v1/inline.js");
+  const flutterwaveStatus = useExternalScript("https://checkout.flutterwave.com/v3.js");
+  const monnifyStatus = useExternalScript("https://sdk.monnify.com/v1/sdk.js");
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -190,6 +192,17 @@ export default function OrderDetailPage({
 
   const handlePayNow = async () => {
     if (!order) return;
+
+    // Check if the selected provider's script is loaded if we intend to use inline flow
+    if (selectedProvider === "paystack" && paystackStatus !== "ready") {
+      toast({ title: "Please wait", description: "Paystack SDK is still loading..." });
+      return;
+    }
+    if (selectedProvider === "monnify" && monnifyStatus !== "ready") {
+      toast({ title: "Please wait", description: "Monnify SDK is still loading..." });
+      return;
+    }
+
     try {
       setPayLoading(true);
       const callback_url = `${window.location.origin}/orders/${order.id}/verify`;
@@ -223,15 +236,15 @@ export default function OrderDetailPage({
         (window as any).MonnifySDK.initialize({
           amount: totalAmount,
           currency: order.currency || "NGN",
-          reference: reference,
-          customerName: "Customer", // Ideally from user profile
-          customerEmail: order.user_id, // Ideally the actually email
-          apiKey: "MK_TEST_4N216GYVM8", // From server .env
-          contractCode: "5079600496", // From server .env
+          reference: reference || payRes.data.reference,
+          customerName: user?.name || "Customer", 
+          customerEmail: user?.email || order.user_id,
+          apiKey: process.env.NEXT_PUBLIC_MONNIFY_API_KEY || "MK_TEST_4N216GYVM8", 
+          contractCode: process.env.NEXT_PUBLIC_MONNIFY_CONTRACT_CODE || "5079600496",
           paymentDescription: `Order #${order.id.slice(0, 8)}`,
           isTestMode: true,
           onComplete: (response: any) => {
-            router.push(`${callback_url}?reference=${reference}`);
+            router.push(`${callback_url}?reference=${reference || payRes.data.reference}`);
           },
           onClose: (data: any) => {
             setPayLoading(false);
@@ -246,11 +259,11 @@ export default function OrderDetailPage({
         return;
       }
 
-      // Default: Redirect flow (Safe fallback for all providers)
+      // Attempt Redirect flow if available (Best for Flutterwave and as a fallback for all)
       if (authorization_url) {
         window.location.href = authorization_url;
       } else {
-        throw new Error("No authorization URL returned from server");
+        throw new Error("No authorization URL returned from server for " + selectedProvider);
       }
     } catch (error: any) {
       toast({
@@ -397,7 +410,7 @@ export default function OrderDetailPage({
                   ) : (
                     <>
                       <CreditCard className="mr-2 h-5 w-5" />
-                      Pay ${totalAmount.toFixed(2)} with {PAYMENT_PROVIDERS.find(p => p.id === selectedProvider)?.name}
+                      Pay {order.currency || "NGN"} {totalAmount.toFixed(2)} with {PAYMENT_PROVIDERS.find(p => p.id === selectedProvider)?.name}
                     </>
                   )}
                 </Button>
@@ -438,7 +451,8 @@ export default function OrderDetailPage({
                         <span className="text-sm font-medium">{item.name}</span>
                       </div>
                       <span className="text-sm font-medium text-slate-700">
-                        ${(Number(item.price) * item.quantity).toFixed(2)}
+                        {order.currency || "NGN"}{" "}
+                        {(Number(item.price) * item.quantity).toFixed(2)}
                       </span>
                     </div>
                   ))
@@ -454,8 +468,9 @@ export default function OrderDetailPage({
               {/* Pricing Breakdown */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between text-slate-600">
-                  <span>Subtotal</span>
-                  <span>${subtotal.toFixed(2)}</span>
+                  <span>
+                    {order.currency || "NGN"} {subtotal.toFixed(2)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-slate-600">
                   <span>
@@ -464,13 +479,15 @@ export default function OrderDetailPage({
                       ? ` (${order.service_charge_percent})`
                       : ""}
                   </span>
-                  <span>${serviceCharge.toFixed(2)}</span>
+                  <span>
+                    {order.currency || "NGN"} {serviceCharge.toFixed(2)}
+                  </span>
                 </div>
                 <Separator className="my-2" />
                 <div className="flex justify-between font-semibold text-slate-900 text-base">
                   <span>Total</span>
                   <span>
-                    {order.currency?.toUpperCase() ?? "USD"} $
+                    {order.currency?.toUpperCase() ?? "NGN"}{" "}
                     {totalAmount.toFixed(2)}
                   </span>
                 </div>

@@ -292,6 +292,11 @@ export default function MenusPage() {
                           <span>{menu.calories} kcal</span>
                         </div>
                       )}
+                      <div className="flex items-center gap-1">
+                        <span className={`font-semibold ${menu.stock_quantity <= 5 ? 'text-destructive' : 'text-primary'}`}>
+                          {menu.stock_quantity > 0 ? `${menu.stock_quantity} left` : 'Out of stock'}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-2">
                       <div
