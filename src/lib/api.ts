@@ -75,9 +75,19 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
         message = `Request failed with status ${res.status}`;
       }
     } else {
-      message = `Request failed with status ${res.status}`;
+      try {
+        const text = await res.text();
+        if (text && text.length < 500) {
+          message = text;
+        } else {
+          message = `Request failed with status ${res.status}`;
+        }
+      } catch (e) {
+        message = `Request failed with status ${res.status}`;
+      }
     }
 
+    // Standardize common error messages
     if (res.status === 429) {
       title = "Too Many Requests";
       message =
@@ -87,12 +97,17 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
       message =
         "We're experiencing some technical difficulties on our end. Our engineers have been notified.";
     } else if (
-      res.status === 403 &&
+      (res.status === 400 || res.status === 403) &&
       (message.toLowerCase().includes("turnstile") ||
-        message.toLowerCase().includes("captcha"))
+        message.toLowerCase().includes("captcha") ||
+        message.toLowerCase().includes("security challenge"))
     ) {
-      title = "Security Verification Failed";
-      message = "Please complete the security challenge to proceed.";
+      title = "Security Verification Required";
+      message = "Complete The Security Challenge before proceeding.";
+    } else if (message.toUpperCase().includes("PRO FEATURE ONLY")) {
+      title = "Access Restricted";
+      message =
+        "One of the security or networking features used requires an active configuration. Please check your environment settings.";
     }
 
     const requestId = headerRequestId || bodyRequestId;
@@ -133,7 +148,22 @@ type FetchOptions = RequestInit & {
 
 import { useAuthStore } from "./store";
 
-let refreshPromise: Promise<any> | null = null;
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: any) => void;
+}> = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token as string);
+    }
+  });
+  failedQueue = [];
+};
 
 /**
  * Enhanced fetch client with retries, timeouts, and production-grade observability.
@@ -173,19 +203,32 @@ async function fetchClient<T = any>(
 
     // Check if token is expired and refresh if necessary
     if (token && isTokenExpired(token)) {
-      try {
-        if (!refreshPromise) {
-          refreshPromise = refreshSession().finally(() => {
-            refreshPromise = null;
+      if (isRefreshing) {
+        try {
+          token = await new Promise<string>((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
           });
+        } catch (error) {
+          console.error("[Auth] Queued auto-refresh failed", error);
         }
-        const refresh = await refreshPromise;
-        if (refresh.success && refresh.token) {
-          useAuthStore.getState().setAccessToken(refresh.token);
-          token = refresh.token;
+      } else {
+        isRefreshing = true;
+        try {
+          const refresh = await refreshSession();
+          if (refresh.success && refresh.token) {
+            token = refresh.token;
+            useAuthStore.getState().setAccessToken(token);
+            processQueue(null, token);
+          } else {
+            const err = new Error(refresh.message || "Refresh failed");
+            processQueue(err);
+          }
+        } catch (error) {
+          console.error("[Auth] Auto-refresh failed", error);
+          processQueue(error);
+        } finally {
+          isRefreshing = false;
         }
-      } catch (error) {
-        console.error("[Auth] Auto-refresh failed", error);
       }
     }
 
@@ -222,26 +265,59 @@ async function fetchClient<T = any>(
         console.log(
           `[API] 401 Detected for ${endpoint}. Attempting refresh...`,
         );
-        try {
-          if (!refreshPromise) {
-            refreshPromise = refreshSession().finally(() => {
-              refreshPromise = null;
-            });
+
+        const originalToken = headers["Authorization"]?.replace("Bearer ", "");
+        const currentStoreToken = useAuthStore.getState().accessToken;
+
+        // If the token was already refreshed by another request in the meanwhile
+        if (originalToken !== currentStoreToken && currentStoreToken) {
+          headers["Authorization"] = `Bearer ${currentStoreToken}`;
+          res = await fetch(`${API_BASE_URL}${endpoint}`, {
+            headers,
+            credentials: "include",
+            signal: controller.signal,
+            ...rest,
+          });
+        } else {
+          try {
+            let newToken: string | null = null;
+            if (isRefreshing) {
+              newToken = await new Promise<string>((resolve, reject) => {
+                failedQueue.push({ resolve, reject });
+              });
+            } else {
+              isRefreshing = true;
+              try {
+                const refresh = await refreshSession();
+                if (refresh.success && refresh.token) {
+                  newToken = refresh.token;
+                  useAuthStore.getState().setAccessToken(newToken);
+                  processQueue(null, newToken);
+                } else {
+                  const err = new Error(refresh.message || "Refresh failed");
+                  processQueue(err);
+                  throw err;
+                }
+              } catch (refreshErr) {
+                processQueue(refreshErr);
+                throw refreshErr;
+              } finally {
+                isRefreshing = false;
+              }
+            }
+
+            if (newToken) {
+              headers["Authorization"] = `Bearer ${newToken}`;
+              res = await fetch(`${API_BASE_URL}${endpoint}`, {
+                headers,
+                credentials: "include",
+                signal: controller.signal,
+                ...rest,
+              });
+            }
+          } catch (refreshErr) {
+            console.error("[API] Refresh during 401 failed", refreshErr);
           }
-          const refresh = await refreshPromise;
-          if (refresh.success && refresh.token) {
-            useAuthStore.getState().setAccessToken(refresh.token);
-            // Update authorization header and retry
-            headers["Authorization"] = `Bearer ${refresh.token}`;
-            res = await fetch(`${API_BASE_URL}${endpoint}`, {
-              headers,
-              credentials: "include",
-              signal: controller.signal,
-              ...rest,
-            });
-          }
-        } catch (refreshErr) {
-          console.error("[API] Refresh during 401 failed", refreshErr);
         }
       }
 
@@ -350,6 +426,14 @@ export async function refreshSession(
   cookieHeader?: string,
   userAgent?: string,
 ) {
+  // If cookieHeader is provided (server-side), check if refresh_token is present.
+  if (cookieHeader && !cookieHeader.includes("refresh_token=")) {
+    console.warn(
+      "[Auth] refreshSession skipped: refresh_token missing from cookies",
+    );
+    return { success: false, token: null, message: "No refresh token" };
+  }
+
   const res = await apiRefreshToken(cookieHeader, userAgent);
 
   if (!res.ok) {
@@ -613,36 +697,35 @@ async function uploadMultipart(
   // 4. Divide the file size to chunks of 5MB
   console.log(`[UploadDebug] Total chunks: ${totalChunks}`);
 
-  // Get the auth token for the XHR requests
-  const token = useAuthStore.getState().accessToken;
+  // Initiate Multipart Upload and get upload id and unique key
+  console.log("[UploadDebug] Initiating multipart upload...");
+  const { data: initData } = await initiateMultipartUpload({
+    filename: file.name,
+    content_type: file.type,
+  });
+  const { upload_id, key } = initData;
+  console.log(`[UploadDebug] Upload initiated. ID: ${upload_id}, Key: ${key}`);
+
+  const completedParts: { part_number: number; etag: string }[] = [];
+  let uploadedBytes = 0;
 
   try {
-    // 5. Initiate Multipart Upload and get upload id and unique key
-    console.log("[UploadDebug] Initiating multipart upload...");
-    const { data: initData } = await initiateMultipartUpload({
-      filename: file.name,
-      content_type: file.type,
-    });
-    const { upload_id, key } = initData;
-    console.log(
-      `[UploadDebug] Upload initiated. ID: ${upload_id}, Key: ${key}`,
-    );
-
-    const completedParts: { part_number: number; etag: string }[] = [];
-    let uploadedBytes = 0;
-
-    // 2. Upload chunks via server proxy (no browser→S3 CORS preflight)
+    // Upload chunks sequentially via server proxy (no browser→S3 CORS preflight)
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
       const partNumber = i + 1;
-      // 6. Processing chunks of a file loop
+
       console.log(
         `[UploadDebug] Processing chunk ${partNumber}/${totalChunks}`,
       );
 
-      // Upload chunk through server proxy — avoids browser→S3 CORS
+      // Re-read the auth token fresh on every chunk — the token may have been
+      // refreshed by the interceptor between chunks, and a stale token causes
+      // 401s that silently stop the loop after chunk 1.
+      const token = useAuthStore.getState().accessToken;
+
       const { etag } = await uploadPartViaServer(
         key,
         upload_id,
@@ -664,13 +747,12 @@ async function uploadMultipart(
       completedParts.push({ part_number: partNumber, etag });
       uploadedBytes += chunk.size;
 
-      // Ensure specific progress point is hit after chunk completion
       if (onProgress) {
         onProgress(Math.round((uploadedBytes / file.size) * 100));
       }
     }
 
-    // 3. Complete
+    // All chunks uploaded — finalize the multipart upload on S3
     console.log("[UploadDebug] Completing multipart upload...");
     const { data: completeData } = await completeMultipartUpload({
       key,
@@ -683,9 +765,33 @@ async function uploadMultipart(
 
     return { data: { url: completeData.url } };
   } catch (error) {
-    console.error("[UploadDebug] Multipart upload failed", error);
+    // Abort the multipart upload on S3 to delete all uploaded parts so far
+    // and avoid accruing orphaned S3 storage.
+    console.error(
+      `[UploadDebug] Chunk upload failed. Aborting multipart upload (key=${key}, uploadId=${upload_id})...`,
+      error,
+    );
+    try {
+      await abortMultipartUpload({ key, upload_id });
+      console.log("[UploadDebug] Multipart upload aborted successfully.");
+    } catch (abortErr) {
+      console.error(
+        "[UploadDebug] Failed to abort multipart upload — orphaned parts may exist on S3.",
+        abortErr,
+      );
+    }
     throw error;
   }
+}
+
+export async function abortMultipartUpload(data: {
+  key: string;
+  upload_id: string;
+}) {
+  return fetchClient("/menus/multipart/abort", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 /**

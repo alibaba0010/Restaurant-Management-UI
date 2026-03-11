@@ -33,7 +33,6 @@ export function CartSheet() {
     updateQuantity,
     totalPrice,
     clearCart,
-    restaurantId,
   } = useCartStore();
   const { user, isAuthenticated } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -66,41 +65,65 @@ export function CartSheet() {
       return;
     }
 
-    if (!restaurantId) return;
-
     try {
       setIsSubmitting(true);
-      const orderData = {
-        restaurant_id: restaurantId,
-        delivery_address: finalAddress,
-        items: items.map((item) => ({
-          menu_id: item.id,
-          quantity: item.quantity,
-        })),
-      };
 
-      const res = await createOrder(orderData);
-      const order = res.data;
+      const groupedItems = items.reduce(
+        (acc: Record<string, typeof items>, item) => {
+          if (!acc[item.restaurant_id]) acc[item.restaurant_id] = [];
+          acc[item.restaurant_id].push(item);
+          return acc;
+        },
+        {},
+      );
+
+      const groupKeys = Object.keys(groupedItems);
+      if (groupKeys.length === 0) return;
+
+      let firstOrderId = "";
+
+      for (const restId of groupKeys) {
+        const orderData = {
+          restaurant_id: restId,
+          delivery_address: finalAddress,
+          order_type: "delivery",
+          items: groupedItems[restId].map((item) => ({
+            menu_id: item.id,
+            quantity: item.quantity,
+          })),
+        };
+
+        const res = await createOrder(orderData);
+        if (!firstOrderId) firstOrderId = res.data.id;
+      }
 
       toast({
-        title: "Order Placed",
-        description: "Redirecting to secure payment...",
-      });
-
-      // Initiate Payment
-      const payRes = await initiatePayment({
-        order_id: order.id,
-        provider: "paystack", // Defaulting to paystack for now
-        callback_url: `${window.location.origin}/orders/${order.id}/verify`,
+        title: groupKeys.length > 1 ? "Orders Placed" : "Order Placed",
+        description:
+          groupKeys.length > 1
+            ? "Redirecting to your orders..."
+            : "Redirecting to secure payment...",
       });
 
       clearCart();
       setIsOpen(false);
 
-      if (payRes.data?.authorization_url) {
-        window.location.href = payRes.data.authorization_url;
+      if (groupKeys.length === 1) {
+        // Initiate Payment for single order instantly
+        const payRes = await initiatePayment({
+          order_id: firstOrderId,
+          provider: "paystack",
+          callback_url: `${window.location.origin}/orders/${firstOrderId}/verify`,
+        });
+
+        if (payRes.data?.authorization_url) {
+          window.location.href = payRes.data.authorization_url;
+        } else {
+          router.push(`/orders/${firstOrderId}`);
+        }
       } else {
-        router.push(`/orders/${order.id}`);
+        // Direct users to orders page to handle multiple payments seamlessly
+        router.push("/orders");
       }
     } catch (error) {
       console.error("Checkout failed", error);

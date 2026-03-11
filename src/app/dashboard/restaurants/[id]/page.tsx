@@ -16,6 +16,7 @@ import { getRestaurantById } from "@/lib/api";
 import { MenuForm } from "@/components/restaurants/menu-form";
 import { MenuList } from "@/components/restaurants/menu-list";
 import { CategoryManager } from "@/components/restaurants/category-manager";
+import { UpdateRestaurantDialog } from "@/components/restaurants/update-restaurant-dialog";
 import { BackButton } from "@/components/ui/back-button";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
@@ -114,12 +115,6 @@ export default function RestaurantDetailsPage() {
                         <span>{restaurant.address}</span>
                       </div>
                     )}
-                    <div className="flex items-center gap-2 bg-background/80 px-4 py-2 rounded-full border shadow-sm backdrop-blur-md hover:border-primary/50 transition-colors">
-                      <UtensilsCrossed className="w-4 h-4 text-primary" />
-                      <span>
-                        Restaurant ID: {restaurant.id?.substring(0, 8)}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -145,7 +140,11 @@ export default function RestaurantDetailsPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {canEdit && (
-                        <div className="pt-2">
+                        <div className="pt-2 flex flex-col gap-3">
+                          <UpdateRestaurantDialog
+                            restaurant={restaurant}
+                            onSuccess={(updated) => setRestaurant(updated)}
+                          />
                           <CategoryManager
                             restaurantId={id}
                             onCategoriesChange={handleMenuSuccess}

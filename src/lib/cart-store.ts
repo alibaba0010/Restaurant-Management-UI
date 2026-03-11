@@ -8,7 +8,6 @@ export interface CartItem extends Menu {
 
 interface CartState {
   items: CartItem[];
-  restaurantId: string | null; // Start with one restaurant constraint for simplicity
   addItem: (item: Menu, quantity?: number) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, info: "increment" | "decrement") => void;
@@ -21,23 +20,8 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
-      restaurantId: null,
 
       addItem: (item, quantity = 1) => {
-        const { items, restaurantId } = get();
-
-        // Enforce single restaurant rule
-        if (restaurantId && restaurantId !== item.restaurant_id) {
-          if (
-            !confirm(
-              "Adding items from a different restaurant will clear your current cart. Continue?",
-            )
-          ) {
-            return;
-          }
-          set({ items: [], restaurantId: item.restaurant_id });
-        }
-
         const currentItems = get().items;
         const existingItem = currentItems.find((i) => i.id === item.id);
 
@@ -59,19 +43,14 @@ export const useCartStore = create<CartState>()(
           }
           set({
             items: [...currentItems, { ...item, quantity }],
-            restaurantId: item.restaurant_id,
           });
         }
       },
 
       removeItem: (itemId) => {
-        set((state) => {
-          const newItems = state.items.filter((i) => i.id !== itemId);
-          return {
-            items: newItems,
-            restaurantId: newItems.length === 0 ? null : state.restaurantId,
-          };
-        });
+        set((state) => ({
+          items: state.items.filter((i) => i.id !== itemId),
+        }));
       },
 
       updateQuantity: (itemId, info) => {
@@ -95,14 +74,11 @@ export const useCartStore = create<CartState>()(
             })
             .filter((i) => i.quantity > 0);
 
-          return {
-            items: newItems,
-            restaurantId: newItems.length === 0 ? null : state.restaurantId,
-          };
+          return { items: newItems };
         });
       },
 
-      clearCart: () => set({ items: [], restaurantId: null }),
+      clearCart: () => set({ items: [] }),
 
       totalItems: () =>
         get().items.reduce((acc, item) => acc + item.quantity, 0),

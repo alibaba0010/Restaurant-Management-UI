@@ -93,20 +93,19 @@ export const RestaurantFormSchema = z.object({
   description: z.string().max(500).optional(),
   address: AddressSchema,
   avatar_url: z.string().url().optional().or(z.literal("")),
-  capacity: z.number().int().min(0).optional(),
-  delivery_available: z.boolean().default(false),
-  takeaway_available: z.boolean().default(false),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  capacity: z.string().optional().or(z.literal("")),
+  delivery_available: z.boolean(),
+  takeaway_available: z.boolean(),
+  latitude: z.string().optional().or(z.literal("")),
+  longitude: z.string().optional().or(z.literal("")),
   account_number: z
     .string()
-    .min(10, "Account number must be at least 10 digits")
-    .max(10)
+    .min(10, "Account number must be exactly 10 digits")
+    .max(10, "Account number must be exactly 10 digits")
     .optional()
     .or(z.literal("")),
   bank_name: z
     .string()
-    .min(1, "Bank name is required")
     .optional()
     .or(z.literal("")),
 });

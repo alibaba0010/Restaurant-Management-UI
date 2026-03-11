@@ -24,6 +24,7 @@ interface RestaurantState {
   restaurants: Restaurant[];
   setRestaurants: (restaurants: Restaurant[]) => void;
   addRestaurant: (restaurant: Restaurant) => void;
+  updateRestaurant: (id: string, updates: Partial<Restaurant>) => void;
 }
 
 export const useRestaurantStore = create<RestaurantState>((set) => ({
@@ -31,4 +32,10 @@ export const useRestaurantStore = create<RestaurantState>((set) => ({
   setRestaurants: (restaurants) => set({ restaurants }),
   addRestaurant: (restaurant) =>
     set((state) => ({ restaurants: [restaurant, ...state.restaurants] })),
+  updateRestaurant: (id, updates) =>
+    set((state) => ({
+      restaurants: state.restaurants.map((r) =>
+        r.id === id ? { ...r, ...updates } : r
+      ),
+    })),
 }));

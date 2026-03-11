@@ -60,7 +60,7 @@ export function SigninForm() {
           setUser(response.data);
 
           // Redirect on success
-          router.push("/dashboard");
+          router.push("/");
         }
       } catch (err: any) {
         setError(err.message || "Invalid credentials.");

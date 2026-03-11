@@ -13,48 +13,82 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "../../components/ui/form";
 import { useAuthStore } from "../../lib/store";
 import { apiUpdateUser } from "../../lib/api";
 import { withToast } from "../../lib/api-toast";
 import { Loader2, MapPin, Phone, User as UserIcon } from "lucide-react";
 import { BackButton } from "../../components/ui/back-button";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AddressSchema } from "../../lib/definitions";
+import * as z from "zod";
+
+const phoneSchema = z.object({
+  phone_number: z.string().min(5, "Phone number is too short"),
+});
 
 export default function SettingsPage() {
   const { user, setUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
 
-  // Local state for editing
-  const [addressData, setAddressData] = useState({
-    address: "",
-    city: "",
-    country: "",
-    post_code: "",
-  });
-  const [phoneNumber, setPhoneNumber] = useState(user?.phone_number || "");
-
   // Track which field is being updated
   const [isUpdatingAddress, setIsUpdatingAddress] = useState(false);
   const [isUpdatingPhone, setIsUpdatingPhone] = useState(false);
 
-  const handleUpdate = async (field: "address" | "phone_number") => {
+  const addressForm = useForm<z.infer<typeof AddressSchema>>({
+    resolver: zodResolver(AddressSchema),
+    defaultValues: {
+      address: "",
+      city: "",
+      country: "",
+      post_code: "",
+    },
+  });
+
+  const phoneForm = useForm<z.infer<typeof phoneSchema>>({
+    resolver: zodResolver(phoneSchema),
+    defaultValues: {
+      phone_number: user?.phone_number || "",
+    },
+  });
+
+  const onAddressSubmit = async (values: z.infer<typeof AddressSchema>) => {
     try {
       setLoading(true);
-      const data =
-        field === "address"
-          ? { address: addressData }
-          : { phone_number: phoneNumber };
-      const res = await withToast(() => apiUpdateUser(data as any), {
-        successMessage: `${
-          field === "address" ? "Address" : "Phone number"
-        } updated successfully.`,
+      const res = await withToast(() => apiUpdateUser({ address: values } as any), {
+        successMessage: "Address updated successfully.",
       });
 
       if (user) {
         setUser({ ...user, ...res });
       }
+      setIsUpdatingAddress(false);
+    } catch (error) {
+      // Error toast already shown by withToast
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      if (field === "address") setIsUpdatingAddress(false);
-      if (field === "phone_number") setIsUpdatingPhone(false);
+  const onPhoneSubmit = async (values: z.infer<typeof phoneSchema>) => {
+    try {
+      setLoading(true);
+      const res = await withToast(() => apiUpdateUser({ phone_number: values.phone_number }), {
+        successMessage: "Phone number updated successfully.",
+      });
+
+      if (user) {
+        setUser({ ...user, ...res });
+      }
+      setIsUpdatingPhone(false);
     } catch (error) {
       // Error toast already shown by withToast
     } finally {
@@ -130,94 +164,86 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="grid gap-4 bg-accent/5 p-4 rounded-md border border-accent/10">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="street">Street Address</Label>
-                            <Input
-                              id="street"
-                              placeholder="123 Main St"
-                              value={addressData.address}
-                              onChange={(e) =>
-                                setAddressData({
-                                  ...addressData,
-                                  address: e.target.value,
-                                })
-                              }
+                      <Form {...addressForm}>
+                        <form
+                          onSubmit={addressForm.handleSubmit(onAddressSubmit)}
+                          className="grid gap-4 bg-accent/5 p-4 rounded-md border border-accent/10"
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={addressForm.control}
+                              name="address"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Street Address</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="123 Main St" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={addressForm.control}
+                              name="city"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>City</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Lagos" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="city">City</Label>
-                            <Input
-                              id="city"
-                              placeholder="Lagos"
-                              value={addressData.city}
-                              onChange={(e) =>
-                                setAddressData({
-                                  ...addressData,
-                                  city: e.target.value,
-                                })
-                              }
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={addressForm.control}
+                              name="country"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Country</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="Nigeria" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={addressForm.control}
+                              name="post_code"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Post Code (Optional)</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder="100001" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
                           </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="country">Country</Label>
-                            <Input
-                              id="country"
-                              placeholder="Nigeria"
-                              value={addressData.country}
-                              onChange={(e) =>
-                                setAddressData({
-                                  ...addressData,
-                                  country: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="post_code">
-                              Post Code (Optional)
-                            </Label>
-                            <Input
-                              id="post_code"
-                              placeholder="100001"
-                              value={addressData.post_code}
-                              onChange={(e) =>
-                                setAddressData({
-                                  ...addressData,
-                                  post_code: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            onClick={() => handleUpdate("address")}
-                            disabled={
-                              loading ||
-                              !addressData.address ||
-                              !addressData.city ||
-                              !addressData.country
-                            }
-                          >
-                            {loading && isUpdatingAddress ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : null}
-                            Save Address
-                          </Button>
-                          {user.address && (
-                            <Button
-                              variant="ghost"
-                              onClick={() => setIsUpdatingAddress(false)}
-                            >
-                              Cancel
+                          <div className="flex justify-end gap-2">
+                            <Button type="submit" disabled={loading}>
+                              {loading && isUpdatingAddress ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : null}
+                              Save Address
                             </Button>
-                          )}
-                        </div>
-                      </div>
+                            {user.address && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => setIsUpdatingAddress(false)}
+                                type="button"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
+                        </form>
+                      </Form>
                     )}
                   </div>
                 </div>
@@ -235,7 +261,6 @@ export default function SettingsPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            setPhoneNumber(user.phone_number || "");
                             setIsUpdatingPhone(true);
                           }}
                         >
@@ -243,32 +268,47 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                     ) : (
-                      <>
-                        <Input
-                          id="phone"
-                          placeholder="e.g. +1234567890"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="flex-1"
-                        />
-                        <Button
-                          onClick={() => handleUpdate("phone_number")}
-                          disabled={loading || !phoneNumber}
-                        >
-                          {loading && isUpdatingPhone ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : null}
-                          Save
-                        </Button>
-                        {user.phone_number && (
-                          <Button
-                            variant="ghost"
-                            onClick={() => setIsUpdatingPhone(false)}
+                      <div className="flex-1 w-full">
+                        <Form {...phoneForm}>
+                          <form
+                            onSubmit={phoneForm.handleSubmit(onPhoneSubmit)}
+                            className="flex gap-2 w-full"
                           >
-                            Cancel
-                          </Button>
-                        )}
-                      </>
+                            <div className="flex-1">
+                              <FormField
+                                control={phoneForm.control}
+                                name="phone_number"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        placeholder="e.g. +1234567890"
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                            <Button type="submit" disabled={loading}>
+                              {loading && isUpdatingPhone ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : null}
+                              Save
+                            </Button>
+                            {user.phone_number && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => setIsUpdatingPhone(false)}
+                                type="button"
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </form>
+                        </Form>
+                      </div>
                     )}
                   </div>
                 </div>

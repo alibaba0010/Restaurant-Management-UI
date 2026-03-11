@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams, use } from "next/navigation";
+import { useEffect, useState, use } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { verifyPayment } from "@/lib/api";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export default function OrderVerifyPage({
     const verify = async () => {
       try {
         const res = await verifyPayment(reference);
-        if (res.data?.success || res.status === "success") {
+        if (res.data?.success) {
           setStatus("success");
           setMessage("Payment successful! Your order is being prepared.");
           // Redirect after 3 seconds

@@ -116,7 +116,11 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider user={user} accessToken={effectiveAccessToken}>
+        <AuthProvider
+          user={user}
+          accessToken={effectiveAccessToken}
+          hasRefreshToken={!!refresh_token}
+        >
           {children}
         </AuthProvider>
         <Toaster />

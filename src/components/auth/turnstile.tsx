@@ -9,9 +9,8 @@ interface TurnstileWrapperProps {
   onError?: (error: any) => void;
 }
 
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "ooooooo";
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
-console.log("SITE KEY............ ", SITE_KEY);
 /**
  * A production-ready wrapper for Cloudflare Turnstile.
  * Automatically handles development vs production behavior.

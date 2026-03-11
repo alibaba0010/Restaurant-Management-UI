@@ -26,10 +26,12 @@ function isPublicPath(pathname: string): boolean {
 export default function AuthProvider({
   user,
   accessToken,
+  hasRefreshToken,
   children,
 }: {
   user: any;
   accessToken?: string | null;
+  hasRefreshToken?: boolean;
   children: React.ReactNode;
 }) {
   const initialized = useRef(false);
@@ -69,7 +71,7 @@ export default function AuthProvider({
     // Since the refresh_token is an HttpOnly cookie, JavaScript cannot read it.
     // Instead, we just attempt a refresh session. The browser will automatically send
     // the HttpOnly cookie in the request (because of credentials: "include" in fetch).
-    if (!currentUser && !currentAccessToken) {
+    if (!currentUser && !currentAccessToken && hasRefreshToken) {
       refreshSession()
         .then(async (res) => {
           if (res.success && res.token) {

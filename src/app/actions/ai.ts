@@ -172,6 +172,7 @@ Return ONLY a JSON array. No markdown. No extra text:
 }
 
 export async function generateMenuDescription(menuName: string) {
+  console.log("Menu name: ", menuName);
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("Gemini API key is not configured.");
@@ -190,6 +191,7 @@ Return ONLY a JSON array with one object. No markdown. No extra text:
 [{"name":"${menuName}", "description":"..."}]`;
 
     const data = await callGemini(prompt, apiKey);
+    console.log("Data:", data);
     return { success: true, data: data[0] };
   } catch (error: any) {
     console.error("Error generating menu description:", error);

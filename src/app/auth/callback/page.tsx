@@ -53,7 +53,7 @@ function CallbackContent() {
           // Assuming data.data holds the user & token info similar to signin
           if (data.data) {
             setUser(data.data);
-            router.push("/dashboard");
+            router.push("/");
           } else {
             throw new Error("Invalid response format");
           }
