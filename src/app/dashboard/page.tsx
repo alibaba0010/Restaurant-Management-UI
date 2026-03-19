@@ -10,13 +10,15 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { Upload, Plus, Store, Users, Utensils } from "lucide-react";
+import { Upload, Plus, Store, Users, Utensils, ClipboardList, ShoppingBag, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRestaurantStore, useAuthStore } from "../../lib/store";
-import { getRestaurants, getAllUsers } from "../../lib/api";
-import { UserRole } from "@/lib/types";
+import { getRestaurants, getAllUsers, getOrders } from "../../lib/api";
+import { UserRole, Order } from "@/lib/types";
 import { BackButton } from "../../components/ui/back-button";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
 
 export default function DashboardPage() {
   const { restaurants, setRestaurants } = useRestaurantStore();
@@ -24,6 +26,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [userCount, setUserCount] = useState(0);
   const [restaurantCount, setRestaurantCount] = useState(0);
+  const [orders, setOrders] = useState<Order[]>([]);
   const isAdmin = currentUser?.role === UserRole.ADMIN;
   const isManagement = currentUser?.role === UserRole.MANAGEMENT;
   const isUser = currentUser?.role === UserRole.USER;
@@ -60,7 +63,23 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
+
+    async function fetchOrders() {
+      try {
+        const { data } = await getOrders();
+        // The API returns { orders: Order[], ... }
+        if (data && (data as any).orders) {
+          setOrders((data as any).orders);
+        } else if (Array.isArray(data)) {
+          setOrders(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch orders", err);
+      }
+    }
+
     fetchData();
+    fetchOrders();
   }, [setRestaurants, isAdmin]);
 
   return (
@@ -75,7 +94,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {isAdmin && (
             <Card className="hover:shadow-lg transition-shadow border-primary/20">
               <CardHeader>
@@ -182,7 +201,89 @@ export default function DashboardPage() {
               </Card>
             </>
           )}
+          
+          <Card className="hover:shadow-lg transition-shadow border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-headline text-accent">
+                <ClipboardList className="h-5 w-5 text-primary" />
+                {isUser ? "Your Orders" : "Orders Management"}
+              </CardTitle>
+              <CardDescription>
+                {isUser ? "Track your past and current food orders." : "Manage customer orders and fulfillment."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2">
+                <div className="text-sm text-muted-foreground mb-2">
+                   {orders.length > 0 ? `You have ${orders.length} total orders.` : "No orders found yet."}
+                </div>
+                <Button asChild variant="outline">
+                  <Link href="/orders">View All Orders</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+
+        {isUser && (
+           <div className="mt-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-headline text-accent">Recent Orders</h2>
+              <Button asChild variant="ghost" size="sm" className="text-primary font-bold">
+                <Link href="/orders" className="flex items-center">
+                  VIEW ALL HISTORY <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+            
+            {loading ? (
+              <div className="flex gap-4">
+                 {[1, 2, 3].map(i => (
+                   <div key={i} className="flex-1 h-32 bg-slate-100 rounded-xl animate-pulse" />
+                 ))}
+              </div>
+            ) : orders.length > 0 ? (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {orders.slice(0, 3).map((o) => (
+                  <Link href={`/orders/${o.id}`} key={o.id}>
+                    <Card className="hover:shadow-lg transition-shadow h-full border-none shadow-sm bg-slate-50/50 hover:bg-white border hover:border-primary/20">
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <CardTitle className="text-sm font-mono truncate max-w-[150px]">
+                            #{o.id.slice(0, 8)}
+                          </CardTitle>
+                          <Badge variant={o.status === "completed" ? "default" : "secondary"} className="text-[10px] py-0">
+                            {o.status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <CardDescription className="text-[11px]">
+                          {format(new Date(o.created_at), "PPP")}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex justify-between items-center">
+                           <span className="text-xs text-muted-foreground">Amount Paid</span>
+                           <span className="font-bold text-accent">
+                             {o.currency || "NGN"} {Number(o.total_amount).toFixed(2)}
+                           </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-2xl p-12 text-center border border-dashed border-slate-200">
+                <ShoppingBag className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                <p className="text-slate-500 font-medium h2">No orders placed yet</p>
+                <p className="text-slate-400 text-sm mb-6">Hungry? Explore our delicious menus and place your first order.</p>
+                <Button asChild>
+                  <Link href="/menus">Start Ordering</Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {!isUser && (
           <div className="mt-12">

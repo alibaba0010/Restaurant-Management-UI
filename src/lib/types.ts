@@ -76,13 +76,28 @@ export enum OrderType {
   DINE_IN = "dine_in",
 }
 
+export interface Address {
+  id: string;
+  user_id?: string;
+  restaurant_id?: string;
+  formatted_address: string;
+  raw_address: string;
+  latitude?: number;
+  longitude?: number;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: UserRole;
   status: UserStatus;
-  address?: string;
+  address?: string; // Legacy field or formatted primary address
+  address_id?: string;
+  addresses?: Address[];
   avatar_url?: string;
   phone_number?: string;
   created_at: string;

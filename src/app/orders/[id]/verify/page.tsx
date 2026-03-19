@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyPayment } from "@/lib/api";
+import { useCartStore } from "@/lib/cart-store";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +28,7 @@ export default function OrderVerifyPage({
     "verifying",
   );
   const [message, setMessage] = useState("We are verifying your payment...");
+  const { clearCart } = useCartStore();
   const reference = searchParams.get("reference") || searchParams.get("tx_ref");
 
   useEffect(() => {
@@ -36,19 +38,30 @@ export default function OrderVerifyPage({
       return;
     }
 
+    let isMounted = true;
+    let attempts = 0;
+    const maxAttempts = 10;
+
     const verify = async () => {
+      if (!isMounted) return;
       try {
         const res = await verifyPayment(reference);
-        if (res.data?.success) {
+        const isSuccess = res.data?.status === "success" || res.data?.status === "paid";
+        const isPending = res.data?.status === "pending" || res.data?.status === "processing";
+        
+        if (isSuccess) {
           setStatus("success");
           setMessage("Payment successful! Your order is being prepared.");
-          // Redirect after 3 seconds
+          clearCart();
           setTimeout(() => {
-            router.push(`/orders/${id}`);
+            if (isMounted) router.push(`/orders/${id}`);
           }, 3000);
+        } else if (isPending && attempts < maxAttempts) {
+          attempts++;
+          setTimeout(verify, 2000); // Retry after 2 seconds
         } else {
           setStatus("error");
-          setMessage(res.message || "Payment verification failed.");
+          setMessage(res.message || (isPending ? "Verification timed out. Check your order status later." : "Payment verification failed."));
         }
       } catch (err) {
         setStatus("error");
@@ -57,6 +70,10 @@ export default function OrderVerifyPage({
     };
 
     verify();
+
+    return () => {
+      isMounted = false;
+    };
   }, [reference, id, router]);
 
   return (
@@ -68,14 +85,13 @@ export default function OrderVerifyPage({
             <CardTitle className="text-2xl font-headline">
               Payment Verification
             </CardTitle>
-            <CardDescription>Order ID: {id.split("-")[0]}...</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center py-8 gap-6">
             {status === "verifying" && (
               <>
                 <Loader2 className="h-16 w-16 animate-spin text-primary" />
                 <p className="text-muted-foreground animate-pulse text-center">
-                  Communicating with payment provider...
+                  Checking Payment Status...
                 </p>
               </>
             )}

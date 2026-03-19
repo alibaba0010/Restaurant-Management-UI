@@ -306,19 +306,29 @@ export default function MenuDetailsPage({
                           {c.name}
                         </Badge>
                       ))}
-                      <Badge variant={menu.stock_quantity <= 5 ? "destructive" : "secondary"} className={menu.stock_quantity <= 5 ? "animate-pulse" : "bg-primary/5 text-primary border-primary/10 hover:bg-primary/10"}>
-                        {menu.stock_quantity > 0 ? `${menu.stock_quantity} left` : 'Out of stock'}
-                      </Badge>
+                      {menu.stock_quantity <= 0 ? (
+                        <Badge variant="destructive" className="animate-pulse">
+                          Out of Stock
+                        </Badge>
+                      ) : menu.stock_quantity <= 5 ? (
+                        <Badge variant="destructive" className="animate-pulse">
+                          Only {menu.stock_quantity} left!
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10">
+                          {menu.stock_quantity} available
+                        </Badge>
+                      )}
                     </div>
                     <h1 className="text-4xl md:text-5xl font-bold font-headline tracking-tight text-accent">
                       {menu.name}
                     </h1>
                     <div className="flex items-baseline gap-2">
                       <span className="text-4xl font-bold text-primary">
-                        ${parseFloat(menu.price).toFixed(2)}
+                        ₦{parseFloat(menu.price).toFixed(2)}
                       </span>
                       <span className="text-muted-foreground line-through text-lg opacity-50">
-                        ${(parseFloat(menu.price) * 1.2).toFixed(2)}
+                        ₦{(parseFloat(menu.price) * 1.2).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -355,6 +365,24 @@ export default function MenuDetailsPage({
 
                 {/* Premium Action Area */}
                 <div className="mt-12 pt-8 border-t space-y-6">
+                  {menu.stock_quantity <= 0 ? (
+                    <div className="bg-slate-50 border border-dashed border-slate-300 rounded-3xl p-8 flex flex-col items-center gap-4 text-center">
+                      <div className="p-4 bg-slate-100 rounded-2xl">
+                        <ShoppingCart className="w-8 h-8 text-slate-400" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-600 text-lg">This item is out of stock</p>
+                        <p className="text-sm text-slate-400 mt-1">Check back soon — we restock regularly!</p>
+                      </div>
+                      <Button
+                        size="lg"
+                        className="w-full sm:max-w-xs h-14 text-lg rounded-2xl bg-slate-200 text-slate-400 cursor-not-allowed"
+                        disabled
+                      >
+                        Out of Stock
+                      </Button>
+                    </div>
+                  ) : (
                   <div className="flex flex-col sm:flex-row items-center gap-6 justify-between bg-background p-6 rounded-3xl border shadow-sm">
                     <div className="flex flex-col gap-2 w-full sm:w-auto">
                       <span className="text-xs uppercase font-black tracking-widest text-muted-foreground px-1">
@@ -419,6 +447,7 @@ export default function MenuDetailsPage({
                       Add to Order
                     </Button>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -514,7 +543,7 @@ export default function MenuDetailsPage({
                             </div>
                           )}
                           <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-white text-[10px] font-bold">
-                            ${parseFloat(item.price).toFixed(2)}
+                            ₦{parseFloat(item.price).toFixed(2)}
                           </div>
                         </div>
                         <div className="p-4">
@@ -593,7 +622,7 @@ function RecommendationCard({ item }: { item: Menu }) {
         </h4>
         <div className="flex items-center justify-between mt-1">
           <span className="text-primary font-bold text-sm">
-            ${parseFloat(item.price).toFixed(2)}
+            ₦{parseFloat(item.price).toFixed(2)}
           </span>
           {item.prep_time_minutes && (
             <span className="text-[10px] text-muted-foreground flex items-center gap-1">

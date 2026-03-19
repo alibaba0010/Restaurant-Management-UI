@@ -79,6 +79,7 @@ export const UploadFormSchema = z.object({
 });
 
 export const AddressSchema = z.object({
+  id: z.string().uuid().optional(),
   address: z.string().min(1, "Address is required"),
   city: z.string().min(1, "City is required"),
   country: z.string().min(1, "Country is required"),

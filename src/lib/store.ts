@@ -39,3 +39,22 @@ export const useRestaurantStore = create<RestaurantState>((set) => ({
       ),
     })),
 }));
+
+// ---------------------------------------------------------------------------
+// Global Turnstile token store
+// Turnstile tokens are single-use on the server. We store the most recently
+// issued token here so any page/component can consume it. Once consumed it
+// must be refreshed by a new Turnstile widget render.
+// ---------------------------------------------------------------------------
+interface TurnstileState {
+  /** The current unused Turnstile token, or null if expired/consumed. */
+  token: string | null;
+  setToken: (token: string | null) => void;
+  clearToken: () => void;
+}
+
+export const useTurnstileStore = create<TurnstileState>((set) => ({
+  token: null,
+  setToken: (token) => set({ token }),
+  clearToken: () => set({ token: null }),
+}));

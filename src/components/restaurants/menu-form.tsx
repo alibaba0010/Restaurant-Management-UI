@@ -30,7 +30,6 @@ import {
   Video,
   X,
   Utensils,
-  DollarSign,
   Clock,
   Flame,
   FileVideo,
@@ -749,7 +748,7 @@ export function MenuForm({
                   </FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <span className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground font-bold font-sans">₦</span>
                       <Input
                         type="number"
                         step="0.01"

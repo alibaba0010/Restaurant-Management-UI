@@ -108,6 +108,9 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
       title = "Access Restricted";
       message =
         "One of the security or networking features used requires an active configuration. Please check your environment settings.";
+    } else if (res.status === 401) {
+      title = "Unauthorized";
+      message = "Please login again";
     }
 
     const requestId = headerRequestId || bodyRequestId;
@@ -120,7 +123,9 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
     throw new ApiError(message, res.status, title, errorData, requestId);
   }
 
-  if (isJson) {
+  // Even if isJson is false, attempt to parse as JSON for robustness if it's a success status
+  // Some servers might omit the header but still return valid JSON
+  try {
     const json = await res.json();
     return {
       data: json.data || json.response || json,
@@ -129,13 +134,17 @@ async function handleResponse<T = any>(res: Response): Promise<ApiResponse<T>> {
       request_id: json.request_id || headerRequestId || undefined,
       meta: json.meta,
     };
+  } catch (e) {
+    // Fall back to text or null if not JSON
+    if (!isJson) {
+      return {
+        data: null as T,
+        message: "Success",
+        request_id: headerRequestId || undefined,
+      };
+    }
+    throw new ApiError("Failed to parse response", res.status, "Parse Error");
   }
-
-  return {
-    data: null as T,
-    message: "Success",
-    request_id: headerRequestId || undefined,
-  };
 }
 
 type FetchOptions = RequestInit & {
@@ -506,6 +515,7 @@ export async function adminUpdateUser(
 
 export async function apiUpdateUser(data: {
   address?: {
+    id?: string;
     address: string;
     city: string;
     country: string;
@@ -909,18 +919,21 @@ export async function createMenu(data: any) {
   });
 }
 
-export async function getMenus(params: {
-  cursor?: string;
-  page_size?: number;
-  q?: string;
-  restaurant_id?: string;
-  category_id?: string;
-  min_price?: number;
-  max_price?: number;
-  is_available?: boolean;
-  sort_by?: string;
-  order?: "asc" | "desc";
-}) {
+export async function getMenus(
+  params: {
+    cursor?: string;
+    page_size?: number;
+    q?: string;
+    restaurant_id?: string;
+    category_id?: string;
+    min_price?: number;
+    max_price?: number;
+    is_available?: boolean;
+    sort_by?: string;
+    order?: "asc" | "desc";
+  },
+  turnstileToken?: string,
+) {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) query.append(key, value.toString());
@@ -928,6 +941,7 @@ export async function getMenus(params: {
 
   return fetchClient(`/menus?${query.toString()}`, {
     cache: "no-store",
+    turnstileToken,
   });
 }
 

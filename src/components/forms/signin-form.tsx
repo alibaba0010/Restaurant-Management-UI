@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import OauthButtons from "../auth/oauth-buttons";
 import { Loader2, Eye, EyeOff } from "lucide-react";
-import { useAuthStore } from "../../lib/store";
+import { useAuthStore, useTurnstileStore } from "../../lib/store";
 import { TurnstileWrapper } from "../auth/turnstile";
 
 export function SigninForm() {
@@ -30,6 +30,8 @@ export function SigninForm() {
   const router = useRouter();
   const setUser = useAuthStore((state) => state.setUser);
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const setGlobalTurnstileToken = useTurnstileStore((state) => state.setToken);
+  const clearGlobalTurnstileToken = useTurnstileStore((state) => state.clearToken);
 
   const form = useForm<z.infer<typeof SigninFormSchema>>({
     resolver: zodResolver(SigninFormSchema),
@@ -50,6 +52,8 @@ export function SigninForm() {
     startTransition(async () => {
       try {
         const response = await apiSignin(values, undefined, turnstileToken);
+        // Token was consumed by sign-in; clear it from global store.
+        clearGlobalTurnstileToken();
         if (response && response.data) {
           // Store Access Token in Zustand
           if (response.data.access_token) {
@@ -137,7 +141,16 @@ export function SigninForm() {
             <p className="text-sm font-medium text-destructive">{error}</p>
           )}
 
-          <TurnstileWrapper onVerify={setTurnstileToken} />
+          <TurnstileWrapper
+            onVerify={(token) => {
+              setTurnstileToken(token);
+              setGlobalTurnstileToken(token);
+            }}
+            onExpire={() => {
+              setTurnstileToken(undefined);
+              clearGlobalTurnstileToken();
+            }}
+          />
 
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
