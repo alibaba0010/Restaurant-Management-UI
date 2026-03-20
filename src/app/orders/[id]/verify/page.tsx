@@ -27,6 +27,7 @@ export default function OrderVerifyPage({
   const [status, setStatus] = useState<"verifying" | "success" | "error">(
     "verifying",
   );
+  const [finalOrderId, setFinalOrderId] = useState<string>(id);
   const [message, setMessage] = useState("We are verifying your payment...");
   const { clearCart } = useCartStore();
   const reference = searchParams.get("reference") || searchParams.get("tx_ref");
@@ -40,7 +41,9 @@ export default function OrderVerifyPage({
 
     let isMounted = true;
     let attempts = 0;
-    const maxAttempts = 10;
+    let timeoutId: NodeJS.Timeout;
+    const maxAttempts = 30; // 60 seconds wait time for slower APIs like Monnify Sandbox
+    let verifiedOrderId = id;
 
     const verify = async () => {
       if (!isMounted) return;
@@ -49,16 +52,22 @@ export default function OrderVerifyPage({
         const isSuccess = res.data?.status === "success" || res.data?.status === "paid";
         const isPending = res.data?.status === "pending" || res.data?.status === "processing";
         
+        if (res.data?.order_id) {
+          verifiedOrderId = res.data.order_id;
+          // Dynamically store the actual order ID in state if it differs from the URL param
+          setFinalOrderId(res.data.order_id);
+        }
+
         if (isSuccess) {
           setStatus("success");
           setMessage("Payment successful! Your order is being prepared.");
           clearCart();
           setTimeout(() => {
-            if (isMounted) router.push(`/orders/${id}`);
+            if (isMounted) router.push(`/orders/${res.data.order_id || id}`);
           }, 3000);
         } else if (isPending && attempts < maxAttempts) {
           attempts++;
-          setTimeout(verify, 2000); // Retry after 2 seconds
+          timeoutId = setTimeout(verify, 2000); // Retry after 2 seconds
         } else {
           setStatus("error");
           setMessage(res.message || (isPending ? "Verification timed out. Check your order status later." : "Payment verification failed."));
@@ -69,10 +78,16 @@ export default function OrderVerifyPage({
       }
     };
 
-    verify();
+    let finalOrderId = id;
+    const runVerification = async () => {
+      await verify();
+    };
+
+    runVerification();
 
     return () => {
       isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [reference, id, router]);
 
@@ -108,7 +123,7 @@ export default function OrderVerifyPage({
                   <p className="text-slate-600">{message}</p>
                 </div>
                 <Button
-                  onClick={() => router.push(`/orders/${id}`)}
+                  onClick={() => router.push(`/orders/${finalOrderId}`)}
                   className="w-full"
                 >
                   Go to Order Details
@@ -129,7 +144,7 @@ export default function OrderVerifyPage({
                 </div>
                 <div className="flex flex-col gap-2 w-full">
                   <Button
-                    onClick={() => router.push(`/orders/${id}`)}
+                    onClick={() => router.push(`/orders/${finalOrderId}`)}
                     variant="outline"
                   >
                     View Order
