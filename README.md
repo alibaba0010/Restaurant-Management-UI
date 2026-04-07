@@ -6,6 +6,7 @@ A modern restaurant management web application built with Next.js 16, React 19, 
 
 ## Table of Contents
 
+- [Architecture Overview](#-architecture-overview)
 - [Key Features](#-key-features)
 - [Tech Stack](#-tech-stack)
 - [Prerequisites](#-prerequisites)
@@ -20,6 +21,50 @@ A modern restaurant management web application built with Next.js 16, React 19, 
 - [Media Upload Pipeline](#-media-upload-pipeline)
 - [Design System](#-design-system)
 - [License](#-license)
+
+---
+
+## 🏗 Architecture Overview
+
+```mermaid
+graph TD
+    A[Browser/Client] --> B[Next.js App Router]
+    B --> C[Server Components]
+    B --> D[Client Components]
+
+    C --> E[Server Actions - Auth/AI]
+    D --> F[Zustand Stores - Auth/Cart]
+
+    E --> G[Gemini API]
+    E --> H[Backend API]
+    F --> H
+
+    H --> I[PostgreSQL]
+    H --> J[Redis]
+    H --> K[Redpanda]
+```
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                           Next.js Application                            │
+│                                                                          │
+│  ┌───────────────────┐        ┌───────────────────┐        ┌──────────┐  │
+│  │  App Router Pages │◀──────▶│  Zustand Stores   │◀──────▶│ Session  │  │
+│  │  (SSR & Client)   │        │   (Auth, Cart)    │        │ Storage  │  │
+│  └─────────┬─────────┘        └─────────┬─────────┘        └──────────┘  │
+│            │                            │                                │
+│  ┌─────────▼─────────┐        ┌─────────▼─────────┐        ┌──────────┐  │
+│  │  Server Actions   │        │   Fetch Client    │        │ Cloud    │  │
+│  │ (Auth, Gemini AI) │        │   (Auth, Retry)   │        │ Storage  │  │
+│  └─────────┬─────────┘        └─────────┬─────────┘        └──────────┘  │
+└────────────┼────────────────────────────┼───────────────────────▲────────┘
+             │                            │                       │
+             ▼                            ▼                       │
+     ┌───────────────┐            ┌───────────────┐        ┌──────┴──────┐
+     │  Gemini Pro   │            │  Backend API  │        │   AWS S3    │
+     │  (AI Engine)  │            │  (Go Service) │        │ (Media/CDN) │
+     └───────────────┘            └───────────────┘        └─────────────┘
+```
 
 ---
 
@@ -39,6 +84,7 @@ A modern restaurant management web application built with Next.js 16, React 19, 
 
 - **Restaurant Management** — Create and configure restaurants with address geocoding
 - **Menu CRUD** — Multi-step creation with name, description, recipe, images, and video
+- **AI-Powered Menus** — Automated dish description generation using Gemini 2.5 Flash
 - **Category Management** — AI-assisted category suggestions based on African cuisine types
 - **Media Uploads** — Direct S3 presigned URL uploads for images; server-proxied multipart uploads for large videos
 - **Stock Control** — Per-item stock quantities with availability toggles
@@ -150,6 +196,9 @@ client/
     │   ├── page.tsx                 # Landing page (hero, features)
     │   ├── globals.css              # Global styles and CSS variables
     │   │
+    │   ├── actions/                 # Server Actions
+    │   │   └── ai.ts                # Gemini-powered category & menu generation
+    │   │
     │   ├── (auth)/                  # Auth route group
     │   │   ├── signin/              # Sign-in page
     │   │   ├── signup/              # Sign-up page
@@ -198,6 +247,7 @@ client/
         ├── store.ts                 # Auth & Restaurant Zustand stores
         ├── types.ts                 # TypeScript interfaces & enums
         ├── definitions.ts           # Extended type definitions
+        ├── payment-client.ts        # Multi-provider inline payment SDK
         ├── server-tokens.ts         # Server-side cookie token extraction
         ├── utils.ts                 # Utility functions (cn, etc.)
         └── placeholder-images.ts    # Placeholder image data
